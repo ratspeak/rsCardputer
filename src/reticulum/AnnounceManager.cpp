@@ -126,7 +126,7 @@ static std::string sanitizeName(const std::string& raw, size_t maxLen = 32) {
         // ASCII safe chars
         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
             (c >= '0' && c <= '9') ||
-            c == ' ' || c == '-' || c == '_' || c == '.' || c == '\'') {
+            c == ' ' || c == '-' || c == '_' || c == '.' || c == '\'' || c == '/') {
             clean += (char)c;
             i++;
         }

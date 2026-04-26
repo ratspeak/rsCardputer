@@ -474,7 +474,9 @@ void setup() {
     // Register announce handler
     bootScreen.setProgress(0.93f, "Starting discovery...");
     ui.render();
-    announceManager = new AnnounceManager();
+    // Filter to lxmf.delivery so we don't capture every aspect (lxmf.propagation,
+    // nomadnetwork.node, etc.) from the same peer as separate "doubled" entries.
+    announceManager = new AnnounceManager("lxmf.delivery");
     announceManager->setStorage(&sdStore, &flash);
     announceManager->setLocalDestHash(rns.destination().hash());
     if (rns.loraInterface()) announceManager->setLoRaInterface(rns.loraInterface());
