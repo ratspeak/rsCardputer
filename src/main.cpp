@@ -221,6 +221,14 @@ void onHotkeyDiag() {
         Serial.printf("  0x08AC (LNA):         0x%02X\n", radio.readRegister(0x08AC));
         Serial.printf("  0x08E7 (OCP):         0x%02X\n", radio.readRegister(0x08E7));
         Serial.printf("  0x0902 (TX clamp):    0x%02X\n", radio.readRegister(0x0902));
+        uint8_t packetType = radio.getPacketType();
+        const char* packetTypeName =
+            (packetType == 0x00) ? "GFSK" :
+            (packetType == 0x01) ? "LoRa" :
+            (packetType == 0x02) ? "LR-FHSS" : "unknown";
+        Serial.printf("  packet_type:          0x%02X (%s)%s\n",
+            packetType, packetTypeName,
+            packetType == 0x01 ? "" : " *** NOT LoRa ***");
         Serial.println("----------------------------");
     }
     Serial.printf("Free heap: %lu bytes\n", (unsigned long)ESP.getFreeHeap());

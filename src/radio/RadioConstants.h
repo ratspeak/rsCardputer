@@ -21,6 +21,7 @@
 #define OP_RX_BUFFER_STATUS_6X      0x13
 #define OP_PACKET_STATUS_6X         0x14
 #define OP_CURRENT_RSSI_6X          0x15
+#define OP_GET_PACKET_TYPE_6X       0x11
 #define OP_MODULATION_PARAMS_6X     0x8B
 #define OP_PACKET_PARAMS_6X         0x8C
 #define OP_STATUS_6X                0xC0
