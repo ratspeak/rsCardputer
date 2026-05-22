@@ -59,12 +59,12 @@ void TextInput::render(M5Canvas& canvas, int x, int y, int w) {
     int h = Theme::CHAR_H + 4;
 
     // Background and border
-    canvas.fillRect(x, y, w, h, Theme::BG);
+    canvas.fillRect(x, y, w, h, Theme::BG_ELEVATED);
     canvas.drawRect(x, y, w, h, _active ? Theme::PRIMARY : Theme::BORDER);
 
     // Prompt
     canvas.setTextSize(Theme::FONT_SIZE);
-    canvas.setTextColor(Theme::PRIMARY);
+    canvas.setTextColor(Theme::ACCENT);
     canvas.setCursor(x + 2, y + 2);
     canvas.print("> ");
 
@@ -73,7 +73,7 @@ void TextInput::render(M5Canvas& canvas, int x, int y, int w) {
     int maxChars = textAreaW / Theme::CHAR_W;
     int textX = x + 2 + 2 * Theme::CHAR_W;
 
-    canvas.setTextColor(Theme::PRIMARY);
+    canvas.setTextColor(Theme::TEXT_PRIMARY);
     if ((int)_text.length() > maxChars) {
         int start = _cursorPos - maxChars + 1;
         if (start < 0) start = 0;
@@ -101,4 +101,5 @@ void TextInput::render(M5Canvas& canvas, int x, int y, int w) {
             canvas.fillRect(cursorX, y + 1, Theme::CHAR_W, Theme::CHAR_H + 2, Theme::PRIMARY);
         }
     }
+    Theme::useSmallFont(canvas);
 }

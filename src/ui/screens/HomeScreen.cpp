@@ -1,6 +1,7 @@
 #include "HomeScreen.h"
 #include "ui/Theme.h"
 #include "config/Config.h"
+#include <algorithm>
 
 struct RadioPresetHome {
     const char* name;
@@ -25,6 +26,26 @@ static const char* detectPresetName(const UserSettings& s) {
     return "Custom";
 }
 
+static void drawFitted(M5Canvas& canvas, const char* text, int x, int y, int maxW) {
+    if (canvas.textWidth(text) <= maxW) {
+        canvas.drawString(text, x, y);
+        return;
+    }
+    char buf[64];
+    int len = std::min((int)strlen(text), (int)sizeof(buf) - 3);
+    while (len > 0) {
+        memcpy(buf, text, len);
+        buf[len] = '.';
+        buf[len + 1] = '.';
+        buf[len + 2] = '\0';
+        if (canvas.textWidth(buf) <= maxW) {
+            canvas.drawString(buf, x, y);
+            return;
+        }
+        len--;
+    }
+}
+
 bool HomeScreen::handleKey(const KeyEvent& event) {
     if (event.enter) {
         if (_announceCb) _announceCb();
@@ -35,96 +56,100 @@ bool HomeScreen::handleKey(const KeyEvent& event) {
 }
 
 void HomeScreen::render(M5Canvas& canvas) {
-    int y = Theme::CONTENT_Y + 2;
-    int lineH = Theme::CHAR_H + 3;
-    int pad = 4;
-    canvas.setTextSize(Theme::FONT_SIZE);
+    int y = Theme::CONTENT_Y + 3;
+    const int pad = 8;
+    const int cardX = 3;
+    const int cardW = Theme::SCREEN_W - 6;
 
-    // === Identity card ===
     int cardY = y;
-    int cardH = lineH * 2 + 6;
-    canvas.drawRoundRect(2, cardY, Theme::SCREEN_W - 4, cardH, 3, Theme::BORDER);
+    int cardH = 35;
+    canvas.fillRoundRect(cardX, cardY, cardW, cardH, 4, Theme::BG_ELEVATED);
+    canvas.drawRoundRect(cardX, cardY, cardW, cardH, 4, Theme::BORDER);
+    canvas.fillRoundRect(cardX + 3, cardY + 4, 3, cardH - 8, 1, Theme::ACCENT);
 
-    y = cardY + 3;
-    // Display name
-    canvas.setTextColor(Theme::ACCENT);
-    canvas.setCursor(pad + 2, y);
+    Theme::useUiFont(canvas);
+    canvas.setTextColor(Theme::TEXT_PRIMARY);
     if (_userConfig && !_userConfig->settings().displayName.isEmpty()) {
-        canvas.print(_userConfig->settings().displayName.c_str());
+        drawFitted(canvas, _userConfig->settings().displayName.c_str(),
+                   cardX + pad, cardY + 2, cardW - pad * 2);
     } else {
         canvas.setTextColor(Theme::MUTED);
-        canvas.print("(no name set)");
+        canvas.drawString("(no name set)", cardX + pad, cardY + 2);
     }
-    y += lineH;
 
-    // LXMF hash
+    Theme::useSmallFont(canvas);
     canvas.setTextColor(Theme::SECONDARY);
-    canvas.setCursor(pad + 2, y);
+    canvas.setCursor(cardX + pad, cardY + 22);
     canvas.print("LXMF ");
-    canvas.setTextColor(Theme::PRIMARY);
+    canvas.setTextColor(Theme::ACCENT);
     if (_rns) {
         canvas.print(_rns->destinationHashStr());
     }
-    y += lineH + 4;
 
-    // === Radio card ===
+    y = cardY + cardH + 4;
     cardY = y;
-    cardH = lineH * 2 + 6;
-    canvas.drawRoundRect(2, cardY, Theme::SCREEN_W - 4, cardH, 3, Theme::BORDER);
+    cardH = 34;
+    canvas.fillRoundRect(cardX, cardY, cardW, cardH, 4, Theme::BG_ELEVATED);
+    canvas.drawRoundRect(cardX, cardY, cardW, cardH, 4, Theme::BORDER);
+    canvas.fillRoundRect(cardX + 3, cardY + 4, 3, cardH - 8, 1, Theme::PRIMARY);
 
-    y = cardY + 3;
-    canvas.setTextColor(Theme::SECONDARY);
-    canvas.setCursor(pad + 2, y);
     if (_radio && _radio->isRadioOnline()) {
         if (_userConfig) {
             const char* preset = detectPresetName(_userConfig->settings());
-            canvas.printf("LoRa: %s  SF%d %luk",
+            Theme::useUiFont(canvas);
+            canvas.setTextColor(Theme::TEXT_PRIMARY);
+            char headline[48];
+            snprintf(headline, sizeof(headline), "%s  SF%d  %luk",
                 preset,
                 _radio->getSpreadingFactor(),
                 (unsigned long)(_radio->getSignalBandwidth() / 1000));
+            drawFitted(canvas, headline, cardX + pad, cardY + 2, cardW - pad * 2);
         }
     } else {
+        Theme::useUiFont(canvas);
         canvas.setTextColor(Theme::MUTED);
-        canvas.print("LoRa: OFFLINE");
+        canvas.drawString("LoRa Offline", cardX + pad, cardY + 2);
     }
-    y += lineH;
 
     if (_radio && _radio->isRadioOnline()) {
+        Theme::useSmallFont(canvas);
         canvas.setTextColor(Theme::MUTED);
-        canvas.setCursor(pad + 2, y);
+        canvas.setCursor(cardX + pad, cardY + 22);
         canvas.printf("%.1f MHz  TX:%d dBm  CR:%d  P:%d L:%d",
             _radio->getFrequency() / 1000000.0,
             _radio->getTxPower(), _radio->getCodingRate4(),
             _rns ? (int)_rns->pathCount() : 0,
             _rns ? (int)_rns->linkCount() : 0);
     }
-    y += lineH + 4;
 
-    // === Announce button — vertically centered in remaining space ===
+    y = cardY + cardH + 4;
     {
-        const char* label = "Announce [Enter]";
-        int btnW = strlen(label) * Theme::CHAR_W + 16;
+        const char* label = "Announce";
+        Theme::useUiFont(canvas);
+        int btnW = canvas.textWidth(label) + 22;
         int btnX = (Theme::SCREEN_W - btnW) / 2;
-        int btnH = Theme::CHAR_H + 6;
-        int remainingH = (Theme::CONTENT_Y + Theme::CONTENT_H) - y;
-        int btnY = y + (remainingH - btnH) / 2;
-        canvas.drawRoundRect(btnX, btnY, btnW, btnH, 3, Theme::PRIMARY);
-        canvas.setTextColor(Theme::PRIMARY);
-        canvas.setCursor(btnX + 8, btnY + 3);
+        int btnH = 18;
+        int btnY = std::min(y, Theme::CONTENT_Y + Theme::CONTENT_H - btnH - 2);
+        canvas.fillRoundRect(btnX, btnY, btnW, btnH, 4, Theme::SELECTION_BG);
+        canvas.drawRoundRect(btnX, btnY, btnW, btnH, 4, Theme::PRIMARY);
+        canvas.setTextColor(Theme::TEXT_PRIMARY);
+        canvas.setCursor(btnX + 11, btnY + 1);
         canvas.print(label);
     }
 
     // Announce flash toast
     if (millis() < _announceFlashUntil) {
         const char* msg = "Announced!";
+        Theme::useSmallFont(canvas);
         int tw = strlen(msg) * Theme::CHAR_W + 12;
         int th = Theme::CHAR_H + 8;
         int tx = (Theme::CONTENT_W - tw) / 2;
         int ty = Theme::CONTENT_Y + Theme::CONTENT_H - th - 4;
         canvas.fillRoundRect(tx, ty, tw, th, 3, Theme::SELECTION_BG);
         canvas.drawRoundRect(tx, ty, tw, th, 3, Theme::PRIMARY);
-        canvas.setTextColor(Theme::PRIMARY);
+        canvas.setTextColor(Theme::TEXT_PRIMARY);
         canvas.setCursor(tx + 6, ty + 4);
         canvas.print(msg);
     }
+    Theme::useSmallFont(canvas);
 }

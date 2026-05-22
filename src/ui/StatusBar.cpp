@@ -29,11 +29,8 @@ bool isChargingKnown() {
 }
 
 void StatusBar::render(M5Canvas& canvas) {
-    // Dark panel background
     canvas.fillRect(0, 0, Theme::SCREEN_W, Theme::STATUS_BAR_H, Theme::BAR_BG);
-    canvas.drawFastHLine(0, Theme::STATUS_BAR_H - 1, Theme::SCREEN_W, Theme::BORDER);
-
-    canvas.setTextSize(Theme::FONT_SIZE);
+    canvas.drawFastHLine(0, Theme::STATUS_BAR_H - 1, Theme::SCREEN_W, Theme::DIVIDER);
 
     // Left side: battery icon + rotating status text.
     unsigned long now = millis();
@@ -49,9 +46,8 @@ void StatusBar::render(M5Canvas& canvas) {
     int batLevel = clampBatteryLevel((int)(_smoothedBattery + 0.5f));
     bool charging = isChargingKnown();
 
-    // Battery icon: always shown (compact)
-    int bx = 2, by = 2, bw = 14, bh = 7;
-    uint16_t batColor = Theme::PRIMARY;
+    int bx = 4, by = 5, bw = 17, bh = 9;
+    uint16_t batColor = Theme::SUCCESS;
     if (batLevel <= 10) batColor = Theme::ERROR;
     else if (batLevel <= 30) batColor = Theme::WARNING;
     canvas.drawRect(bx, by, bw, bh, batColor);
@@ -59,28 +55,28 @@ void StatusBar::render(M5Canvas& canvas) {
     int fillW = (bw - 2) * batLevel / 100;
     if (fillW > 0) canvas.fillRect(bx + 1, by + 1, fillW, bh - 2, batColor);
     if (charging) {
-        canvas.drawLine(bx + 7, by + 1, bx + 5, by + 5, Theme::BG);
-        canvas.drawLine(bx + 5, by + 5, bx + 8, by + 5, Theme::BG);
-        canvas.drawLine(bx + 8, by + 5, bx + 6, by + 8, Theme::BG);
+        canvas.drawLine(bx + 9, by + 1, bx + 6, by + 5, Theme::BG);
+        canvas.drawLine(bx + 6, by + 5, bx + 10, by + 5, Theme::BG);
+        canvas.drawLine(bx + 10, by + 5, bx + 7, by + 8, Theme::BG);
     }
-
-    int textX = bx + bw + 4;
 
     char batStr[6];
     snprintf(batStr, sizeof(batStr), "%d%%", batLevel);
 
+    Theme::useUiFont(canvas);
+    int textX = bx + bw + 6;
     time_t t = time(nullptr);
     if (t > 1700000000) {
         struct tm* tm = localtime(&t);
         char clockStr[8];
         snprintf(clockStr, sizeof(clockStr), "%d:%02d", tm->tm_hour, tm->tm_min);
         bool showClock = ((now / 5000UL) % 2UL) == 1UL;
-        canvas.setTextColor(showClock ? Theme::PRIMARY : (charging ? Theme::ACCENT : batColor));
-        canvas.setCursor(textX, Theme::STATUS_PAD);
+        canvas.setTextColor(showClock ? Theme::TEXT_PRIMARY : (charging ? Theme::ACCENT : batColor));
+        canvas.setCursor(textX, Theme::SHELL_TEXT_Y);
         canvas.print(showClock ? clockStr : batStr);
     } else {
         canvas.setTextColor(charging ? Theme::ACCENT : batColor);
-        canvas.setCursor(textX, Theme::STATUS_PAD);
+        canvas.setCursor(textX, Theme::SHELL_TEXT_Y);
         canvas.print(batStr);
     }
 
@@ -92,20 +88,20 @@ void StatusBar::render(M5Canvas& canvas) {
         centerColor = Theme::PRIMARY;
     }
     canvas.setTextColor(centerColor);
-    int modeLen = strlen(centerText) * Theme::CHAR_W;
-    canvas.setCursor((Theme::SCREEN_W - modeLen) / 2, Theme::STATUS_PAD);
+    int modeLen = canvas.textWidth(centerText);
+    canvas.setCursor((Theme::SCREEN_W - modeLen) / 2, Theme::SHELL_TEXT_Y);
     canvas.print(centerText);
 
     // Connection indicators (right) — LoRa + TCP + AutoIface peers
-    int rx = Theme::SCREEN_W - Theme::STATUS_PAD;
+    int rx = Theme::SCREEN_W - 4;
 
     // TCP indicator
     if (_tcpConnected) {
         const char* tcpStr = "TCP";
-        int tcpW = strlen(tcpStr) * Theme::CHAR_W;
+        int tcpW = canvas.textWidth(tcpStr);
         rx -= tcpW;
         canvas.setTextColor(Theme::ACCENT);
-        canvas.setCursor(rx, Theme::STATUS_PAD);
+        canvas.setCursor(rx, Theme::SHELL_TEXT_Y);
         canvas.print(tcpStr);
         rx -= 4;
     }
@@ -114,21 +110,22 @@ void StatusBar::render(M5Canvas& canvas) {
     if (_autoIfacePeers > 0) {
         char buf[8];
         snprintf(buf, sizeof(buf), "L:%d", _autoIfacePeers);
-        int w = strlen(buf) * Theme::CHAR_W;
+        int w = canvas.textWidth(buf);
         rx -= w;
         canvas.setTextColor(Theme::PRIMARY);
-        canvas.setCursor(rx, Theme::STATUS_PAD);
+        canvas.setCursor(rx, Theme::SHELL_TEXT_Y);
         canvas.print(buf);
         rx -= 4;
     }
 
     // LoRa indicator
     const char* loraStr = _loraOnline ? "LoRa" : "----";
-    uint16_t loraColor = _loraOnline ? Theme::PRIMARY : Theme::MUTED;
-    int loraW = strlen(loraStr) * Theme::CHAR_W;
+    uint16_t loraColor = _loraOnline ? Theme::SUCCESS : Theme::MUTED;
+    int loraW = canvas.textWidth(loraStr);
     rx -= loraW;
-    canvas.fillCircle(rx - 4, Theme::STATUS_PAD + 3, 2, loraColor);
+    canvas.fillCircle(rx - 5, Theme::STATUS_BAR_H / 2, 3, loraColor);
     canvas.setTextColor(loraColor);
-    canvas.setCursor(rx, Theme::STATUS_PAD);
+    canvas.setCursor(rx, Theme::SHELL_TEXT_Y);
     canvas.print(loraStr);
+    Theme::useSmallFont(canvas);
 }

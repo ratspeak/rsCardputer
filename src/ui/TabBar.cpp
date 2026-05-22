@@ -25,26 +25,24 @@ void TabBar::setUnreadCount(int tab, int count) {
 void TabBar::render(M5Canvas& canvas) {
     int y = Theme::SCREEN_H - Theme::TAB_BAR_H;
 
-    // Dark panel background
     canvas.fillRect(0, y, Theme::SCREEN_W, Theme::TAB_BAR_H, Theme::BAR_BG);
-    canvas.drawFastHLine(0, y, Theme::SCREEN_W, Theme::BORDER);
+    canvas.drawFastHLine(0, y, Theme::SCREEN_W, Theme::DIVIDER);
 
-    canvas.setTextSize(Theme::FONT_SIZE);
+    Theme::useUiFont(canvas);
 
     for (int i = 0; i < Theme::TAB_COUNT; i++) {
         int tx = i * Theme::TAB_W;
         bool active = (i == _activeTab);
 
-        int labelLen = strlen(TAB_LABELS[i]) * Theme::CHAR_W;
+        int labelLen = canvas.textWidth(TAB_LABELS[i]);
         int labelX = tx + (Theme::TAB_W - labelLen) / 2;
-        int labelY = y + (Theme::TAB_BAR_H - Theme::CHAR_H) / 2;
+        int labelY = y + 3;
 
-        // Active tab: filled rounded pill behind text
         if (active) {
-            int pillW = labelLen + 8;
-            int pillX = labelX - 4;
-            int pillY = labelY - 3;
-            int pillH = Theme::CHAR_H + 5;
+            int pillW = labelLen + 10;
+            int pillX = tx + (Theme::TAB_W - pillW) / 2;
+            int pillY = y + 2;
+            int pillH = Theme::TAB_BAR_H - 4;
             canvas.fillRoundRect(pillX, pillY, pillW, pillH, 3, Theme::SELECTION_BG);
             canvas.drawRoundRect(pillX, pillY, pillW, pillH, 3, Theme::PRIMARY);
         }
@@ -63,17 +61,19 @@ void TabBar::render(M5Canvas& canvas) {
         canvas.setCursor(labelX, labelY);
         canvas.print(TAB_LABELS[i]);
 
-        // Unread badge (small pill)
         if (_unreadCounts[i] > 0) {
             char badge[8];
             snprintf(badge, sizeof(badge), "%d", _unreadCounts[i]);
+            Theme::useSmallFont(canvas);
             int badgeW = strlen(badge) * Theme::CHAR_W + 6;
-            int badgeX = labelX + labelLen + 2;
-            int badgeY = labelY - 1;
-            canvas.fillRoundRect(badgeX, badgeY, badgeW, Theme::CHAR_H + 2, 3, Theme::BADGE_BG);
+            int badgeX = tx + Theme::TAB_W - badgeW - 3;
+            int badgeY = y + 3;
+            canvas.fillRoundRect(badgeX, badgeY, badgeW, Theme::CHAR_H + 3, 3, Theme::BADGE_BG);
             canvas.setTextColor(Theme::BADGE_TEXT);
             canvas.setCursor(badgeX + 3, badgeY + 1);
             canvas.print(badge);
+            Theme::useUiFont(canvas);
         }
     }
+    Theme::useSmallFont(canvas);
 }

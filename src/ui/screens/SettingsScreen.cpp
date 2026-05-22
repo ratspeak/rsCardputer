@@ -15,13 +15,13 @@ void SettingsScreen::onEnter() {
 
 void SettingsScreen::buildMainMenu() {
     _list.clear();
-    _list.addItem("> Radio Settings");
-    _list.addItem("> WiFi Settings");
-    _list.addItem("> SD Card");
-    _list.addItem("> Display");
-    _list.addItem("> Audio");
-    _list.addItem("> About");
-    _list.addItem("! Factory Reset");
+    _list.addItem("Radio");
+    _list.addItem("Wi-Fi");
+    _list.addItem("SD Card");
+    _list.addItem("Display");
+    _list.addItem("Audio");
+    _list.addItem("About");
+    _list.addItem("Factory Reset", Theme::ERROR);
 }
 
 struct RadioPreset {
@@ -120,8 +120,8 @@ void SettingsScreen::buildWiFiMenu() {
             _list.addItem("No network configured");
             _list.addItem("");                      // Item 2 placeholder
         }
-        _list.addItem("[Scan Networks]");           // Item 3
-        _list.addItem("> TCP Connections");          // Item 4
+        _list.addItem("Scan Networks");             // Item 3
+        _list.addItem("TCP Connections");            // Item 4
         // Item 5: AutoInterface (LAN auto-discovery via IPv6 multicast)
         char autoBuf[40];
         snprintf(autoBuf, sizeof(autoBuf), "Auto-discover LAN: %s",
@@ -228,8 +228,8 @@ void SettingsScreen::buildSDCardMenu() {
         snprintf(buf, sizeof(buf), "Free: %llu MB", free / (1024 * 1024));
         _list.addItem(buf);
 
-        _list.addItem("[Initialize for RatCom]");
-        _list.addItem("[Wipe All Data]");
+        _list.addItem("Initialize for RatCom");
+        _list.addItem("Wipe All Data", Theme::ERROR);
     } else {
         _list.addItem("Status: NOT INSERTED");
     }
@@ -312,7 +312,7 @@ void SettingsScreen::buildScanResultsMenu() {
         }
     }
 
-    _list.addItem("[Rescan]");
+    _list.addItem("Rescan");
     _list.addItem("< Back");
 }
 
@@ -555,27 +555,30 @@ void SettingsScreen::render(M5Canvas& canvas) {
     // Header with accent bar
     const char* headers[] = {"SETTINGS", "RADIO", "WIFI", "TCP CONNECTIONS",
                              "SD CARD", "DISPLAY", "AUDIO", "ABOUT", "WIFI SCAN"};
-    canvas.fillRect(0, y0, Theme::CONTENT_W, 11, Theme::BAR_BG);
-    canvas.fillRect(0, y0, 2, 11, Theme::ACCENT);  // left accent bar
+    const int headerH = 17;
+    canvas.fillRect(0, y0, Theme::CONTENT_W, headerH, Theme::BG_SURFACE);
+    canvas.fillRect(0, y0 + 2, 3, headerH - 4, Theme::ACCENT);
     canvas.setTextColor(Theme::ACCENT);
-    canvas.setTextSize(Theme::FONT_SIZE);
-    canvas.drawString(headers[_subMenu], 6, y0 + 2);
-    canvas.drawFastHLine(0, y0 + 11, Theme::CONTENT_W, Theme::BORDER);
+    Theme::useUiFont(canvas);
+    canvas.drawString(headers[_subMenu], 8, y0 + 2);
+    canvas.drawFastHLine(0, y0 + headerH, Theme::CONTENT_W, Theme::DIVIDER);
+    Theme::useSmallFont(canvas);
 
     if (_editing) {
         // Show field name
         canvas.setTextColor(Theme::MUTED);
         std::string label = _editLabel.empty() ? "Edit value:" : _editLabel;
-        canvas.drawString(label.c_str(), 4, y0 + 14);
+        canvas.drawString(label.c_str(), 4, y0 + headerH + 5);
 
         // Show text input
-        _editInput.render(canvas, 0, y0 + 28, Theme::CONTENT_W);
+        _editInput.render(canvas, 0, y0 + headerH + 19, Theme::CONTENT_W);
 
         // Hint
         canvas.setTextColor(Theme::MUTED);
-        canvas.drawString("Enter=save  Esc=cancel", 4, y0 + 44);
+        canvas.drawString("Enter=save  Esc=cancel", 4, y0 + headerH + 36);
     } else {
-        _list.render(canvas, 0, y0 + 12, Theme::CONTENT_W, Theme::CONTENT_H - 14);
+        _list.render(canvas, 0, y0 + headerH + 2, Theme::CONTENT_W,
+                     Theme::CONTENT_H - headerH - 3);
     }
 
     // Confirmation dialog overlay
@@ -611,12 +614,16 @@ void SettingsScreen::render(M5Canvas& canvas) {
 
 void SettingsScreen::renderAbout(M5Canvas& canvas) {
     int y0 = Theme::CONTENT_Y;
-    canvas.setTextColor(Theme::SECONDARY);
-    canvas.setTextSize(Theme::FONT_SIZE);
-    canvas.drawString("ABOUT", 4, y0 + 2);
-    canvas.drawFastHLine(0, y0 + 10, Theme::CONTENT_W, Theme::BORDER);
+    const int headerH = 17;
+    canvas.fillRect(0, y0, Theme::CONTENT_W, headerH, Theme::BG_SURFACE);
+    canvas.fillRect(0, y0 + 2, 3, headerH - 4, Theme::ACCENT);
+    Theme::useUiFont(canvas);
+    canvas.setTextColor(Theme::ACCENT);
+    canvas.drawString("About", 8, y0 + 2);
+    canvas.drawFastHLine(0, y0 + headerH, Theme::CONTENT_W, Theme::DIVIDER);
 
-    int y = y0 + 14;
+    Theme::useSmallFont(canvas);
+    int y = y0 + headerH + 5;
     canvas.setTextColor(Theme::PRIMARY);
     canvas.drawString("RatCom v" RATCOM_VERSION_STRING, 4, y); y += 10;
 

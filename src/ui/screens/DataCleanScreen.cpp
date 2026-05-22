@@ -41,26 +41,30 @@ void DataCleanScreen::render(M5Canvas& canvas) {
         canvas.setCursor(cx - stw / 2, Theme::CONTENT_Y + 70);
         canvas.print(_status);
     } else {
-        // Yes / No selection
-        const char* yes = "[ Yes ]";
-        const char* no  = "[ No ]";
+        const char* yes = "Yes";
+        const char* no  = "No";
 
-        canvas.setTextColor(_selectedYes ? Theme::PRIMARY : Theme::MUTED);
-        int yw = strlen(yes) * Theme::CHAR_W;
-        canvas.setCursor(cx - 36 - yw / 2, Theme::CONTENT_Y + 70);
+        Theme::useUiFont(canvas);
+        canvas.setTextColor(_selectedYes ? Theme::TEXT_PRIMARY : Theme::MUTED);
+        int yw = canvas.textWidth(yes) + 20;
+        int yesX = cx - 48 - yw / 2;
+        canvas.fillRoundRect(yesX, Theme::CONTENT_Y + 70, yw, 18, 4,
+                             _selectedYes ? Theme::SELECTION_BG : Theme::BG_ELEVATED);
+        canvas.drawRoundRect(yesX, Theme::CONTENT_Y + 70, yw, 18, 4,
+                             _selectedYes ? Theme::PRIMARY : Theme::BORDER);
+        canvas.setCursor(yesX + 10, Theme::CONTENT_Y + 72);
         canvas.print(yes);
 
-        canvas.setTextColor(!_selectedYes ? Theme::PRIMARY : Theme::MUTED);
-        int nw = strlen(no) * Theme::CHAR_W;
-        canvas.setCursor(cx + 36 - nw / 2, Theme::CONTENT_Y + 70);
+        canvas.setTextColor(!_selectedYes ? Theme::TEXT_PRIMARY : Theme::MUTED);
+        int nw = canvas.textWidth(no) + 20;
+        int noX = cx + 48 - nw / 2;
+        canvas.fillRoundRect(noX, Theme::CONTENT_Y + 70, nw, 18, 4,
+                             !_selectedYes ? Theme::SELECTION_BG : Theme::BG_ELEVATED);
+        canvas.drawRoundRect(noX, Theme::CONTENT_Y + 70, nw, 18, 4,
+                             !_selectedYes ? Theme::PRIMARY : Theme::BORDER);
+        canvas.setCursor(noX + 10, Theme::CONTENT_Y + 72);
         canvas.print(no);
-
-        // Hint
-        canvas.setTextColor(Theme::MUTED);
-        const char* hint = ";/.=Select  Enter=OK";
-        int hw = strlen(hint) * Theme::CHAR_W;
-        canvas.setCursor(cx - hw / 2, Theme::CONTENT_Y + 86);
-        canvas.print(hint);
+        Theme::useSmallFont(canvas);
     }
 
     // Version

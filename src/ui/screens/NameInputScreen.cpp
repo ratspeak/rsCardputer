@@ -45,13 +45,6 @@ void NameInputScreen::render(M5Canvas& canvas) {
         canvas.drawFastVLine(curX, fieldY + 2, Theme::CHAR_H, Theme::PRIMARY);
     }
 
-    // Hint
-    canvas.setTextColor(Theme::MUTED);
-    const char* hint = "Enter=OK  (optional)";
-    int hw = strlen(hint) * Theme::CHAR_W;
-    canvas.setCursor(cx - hw / 2, Theme::CONTENT_Y + 78);
-    canvas.print(hint);
-
     // Version
     canvas.setTextColor(Theme::BORDER);
     const char* ver = "v" RATCOM_VERSION_STRING;

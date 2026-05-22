@@ -100,33 +100,34 @@ void MessagesScreen::render(M5Canvas& canvas) {
 
     int y = Theme::CONTENT_Y;
 
-    // Header
-    canvas.fillRect(0, y, Theme::CONTENT_W, 11, Theme::BAR_BG);
-    canvas.fillRect(0, y, 2, 11, Theme::ACCENT);
+    const int headerH = 17;
+    canvas.fillRect(0, y, Theme::CONTENT_W, headerH, Theme::BG_SURFACE);
+    canvas.fillRect(0, y + 2, 3, headerH - 4, Theme::ACCENT);
     canvas.setTextColor(Theme::ACCENT);
-    canvas.setTextSize(Theme::FONT_SIZE);
-    canvas.drawString("MESSAGES", 6, y + 2);
-    canvas.drawFastHLine(0, y + 11, Theme::CONTENT_W, Theme::BORDER);
-    y += 13;
+    Theme::useUiFont(canvas);
+    canvas.drawString("Messages", 8, y + 2);
+    canvas.drawFastHLine(0, y + headerH, Theme::CONTENT_W, Theme::DIVIDER);
+    y += headerH + 2;
 
     if (_showingContext) {
+        Theme::useUiFont(canvas);
         canvas.setTextColor(Theme::PRIMARY);
-        canvas.setCursor(4, y);
         std::string label;
         if (_am) {
             const DiscoveredNode* node = _am->findNodeByHex(_contextPeerHex);
             if (node && !node->name.empty()) label = node->name;
         }
         if (label.empty()) label = _contextPeerHex.substr(0, 8);
-        canvas.print(label.c_str());
-        y += Theme::CHAR_H + 4;
-        canvas.drawFastHLine(0, y, Theme::SCREEN_W, Theme::BORDER);
+        canvas.drawString(label.c_str(), 8, y);
+        y += Theme::LIST_ROW_H + 2;
+        canvas.drawFastHLine(0, y, Theme::SCREEN_W, Theme::DIVIDER);
         y += 2;
 
         _contextList.render(canvas, 0, y, Theme::CONTENT_W, Theme::CONTENT_H - (y - Theme::CONTENT_Y));
     } else {
         _list.render(canvas, 0, y, Theme::CONTENT_W, Theme::CONTENT_H - (y - Theme::CONTENT_Y));
     }
+    Theme::useSmallFont(canvas);
 }
 
 bool MessagesScreen::handleKey(const KeyEvent& event) {

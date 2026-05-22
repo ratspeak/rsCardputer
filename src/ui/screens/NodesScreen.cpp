@@ -220,9 +220,11 @@ void NodesScreen::render(M5Canvas& canvas) {
     int y = Theme::CONTENT_Y;
 
     if (_showingActions) {
-        canvas.setTextSize(Theme::FONT_SIZE);
-        canvas.setTextColor(Theme::PRIMARY);
-        canvas.setCursor(4, y + 2);
+        const int headerH = 17;
+        canvas.fillRect(0, y, Theme::CONTENT_W, headerH, Theme::BG_SURFACE);
+        canvas.fillRect(0, y + 2, 3, headerH - 4, Theme::PRIMARY);
+        Theme::useUiFont(canvas);
+        canvas.setTextColor(Theme::TEXT_PRIMARY);
         {
             char truncName[80];
             size_t chars = 0, i = 0;
@@ -240,30 +242,31 @@ void NodesScreen::render(M5Canvas& canvas) {
             }
             memcpy(truncName, _selectedNodeName.data(), i);
             truncName[i] = '\0';
-            canvas.print(truncName);
+            canvas.drawString(truncName, 8, y + 2);
         }
-        y += Theme::CHAR_H + 4;
-        canvas.drawFastHLine(0, y, Theme::SCREEN_W, Theme::BORDER);
+        y += headerH + 2;
+        canvas.drawFastHLine(0, y, Theme::SCREEN_W, Theme::DIVIDER);
         y += 2;
 
         _actionList.render(canvas, 0, y, Theme::SCREEN_W, Theme::CONTENT_H - (y - Theme::CONTENT_Y));
     } else {
-        // Header
-        canvas.fillRect(0, y, Theme::CONTENT_W, 11, Theme::BAR_BG);
-        canvas.fillRect(0, y, 2, 11, Theme::ACCENT);
-        canvas.setTextSize(Theme::FONT_SIZE);
+        const int headerH = 17;
+        canvas.fillRect(0, y, Theme::CONTENT_W, headerH, Theme::BG_SURFACE);
+        canvas.fillRect(0, y + 2, 3, headerH - 4, Theme::ACCENT);
+        Theme::useUiFont(canvas);
         canvas.setTextColor(Theme::ACCENT);
-        canvas.setCursor(6, y + 2);
+        canvas.setCursor(8, y + 2);
         if (_contactCount > 0) {
-            canvas.printf("CONTACTS (%d)", _contactCount);
+            canvas.printf("Contacts (%d)", _contactCount);
         } else {
-            canvas.printf("PEERS (%d)", _announces ? _announces->nodeCount() : 0);
+            canvas.printf("Peers (%d)", _announces ? _announces->nodeCount() : 0);
         }
 
-        canvas.drawFastHLine(0, y + 11, Theme::SCREEN_W, Theme::BORDER);
-        y += 13;
+        canvas.drawFastHLine(0, y + headerH, Theme::SCREEN_W, Theme::DIVIDER);
+        y += headerH + 2;
 
         if (_list.itemCount() == 0) {
+            Theme::useSmallFont(canvas);
             canvas.setTextColor(Theme::MUTED);
             canvas.setCursor(4, y + 10);
             canvas.print("No nodes discovered yet.");
@@ -273,6 +276,7 @@ void NodesScreen::render(M5Canvas& canvas) {
             _list.render(canvas, 0, y, Theme::SCREEN_W, Theme::CONTENT_H - (y - Theme::CONTENT_Y));
         }
     }
+    Theme::useSmallFont(canvas);
 }
 
 bool NodesScreen::handleKey(const KeyEvent& event) {

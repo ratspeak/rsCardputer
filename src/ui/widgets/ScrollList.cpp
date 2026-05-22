@@ -2,6 +2,29 @@
 
 static const std::string EMPTY_ITEM;
 
+namespace {
+void drawFitted(M5Canvas& canvas, const std::string& text, int x, int y, int maxW) {
+    if (canvas.textWidth(text.c_str()) <= maxW) {
+        canvas.drawString(text.c_str(), x, y);
+        return;
+    }
+
+    char buf[96];
+    int copyLen = std::min((int)text.length(), (int)sizeof(buf) - 3);
+    while (copyLen > 0) {
+        memcpy(buf, text.c_str(), copyLen);
+        buf[copyLen] = '.';
+        buf[copyLen + 1] = '.';
+        buf[copyLen + 2] = '\0';
+        if (canvas.textWidth(buf) <= maxW) {
+            canvas.drawString(buf, x, y);
+            return;
+        }
+        copyLen--;
+    }
+}
+}
+
 void ScrollList::setItems(const std::vector<std::string>& items) {
     _items = items;
     _itemColors.assign(items.size(), 0);
@@ -73,49 +96,42 @@ const std::string& ScrollList::getSelectedItem() const {
 }
 
 void ScrollList::render(M5Canvas& canvas, int x, int y, int w, int h) {
-    int rowH = Theme::CHAR_H + 4;
+    int rowH = Theme::LIST_ROW_H;
     _visibleRows = h / rowH;
+    if (_visibleRows < 1) _visibleRows = 1;
 
-    canvas.setTextSize(Theme::FONT_SIZE);
+    Theme::useUiFont(canvas);
 
     for (int i = 0; i < _visibleRows && (i + _scrollOffset) < (int)_items.size(); i++) {
         int idx = i + _scrollOffset;
         int ry = y + i * rowH;
+        bool selected = (idx == _selected);
 
-        // Selection highlight — rounded pill
-        if (idx == _selected) {
-            canvas.fillRoundRect(x + 1, ry, w - 2, rowH, 3, Theme::SELECTION_BG);
-            canvas.drawRoundRect(x + 1, ry, w - 2, rowH, 3, Theme::PRIMARY);
-            canvas.setTextColor(Theme::PRIMARY);
+        if (selected) {
+            canvas.fillRoundRect(x + 1, ry, w - 2, rowH - 1, 3, Theme::BG_HOVER);
+            canvas.fillRoundRect(x + 2, ry + 2, 3, rowH - 5, 1, Theme::PRIMARY);
+            canvas.setTextColor(Theme::TEXT_PRIMARY);
         } else {
-            // Use per-item color if set, otherwise default
             uint16_t itemColor = (idx < (int)_itemColors.size() && _itemColors[idx] != 0)
-                                 ? _itemColors[idx] : Theme::SECONDARY;
+                                 ? _itemColors[idx] : Theme::TEXT_SECONDARY;
             canvas.setTextColor(itemColor);
         }
 
-        // Truncate text to fit width (stack buffer avoids heap allocation per frame)
-        int maxChars = w / Theme::CHAR_W;
-        canvas.setCursor(x + 2, ry + 2);
-        if ((int)_items[idx].length() > maxChars) {
-            char truncBuf[64];
-            int copyLen = std::min(maxChars - 2, (int)sizeof(truncBuf) - 3);
-            if (copyLen > (int)_items[idx].length()) copyLen = _items[idx].length();
-            memcpy(truncBuf, _items[idx].c_str(), copyLen);
-            truncBuf[copyLen] = '.';
-            truncBuf[copyLen + 1] = '.';
-            truncBuf[copyLen + 2] = '\0';
-            canvas.print(truncBuf);
-        } else {
-            canvas.print(_items[idx].c_str());
+        if (!selected && (i + 1 < _visibleRows) && (idx + 1 < (int)_items.size())) {
+            canvas.drawFastHLine(x + 8, ry + rowH - 1, w - 12, Theme::DIVIDER);
         }
+
+        int textX = x + 9;
+        int textW = w - 16;
+        drawFitted(canvas, _items[idx], textX, ry + 1, textW);
     }
 
-    // Scroll indicator — rounded track
     if ((int)_items.size() > _visibleRows) {
         int barH = h * _visibleRows / _items.size();
         if (barH < 6) barH = 6;
         int barY = y + (_scrollOffset * h / _items.size());
-        canvas.fillRoundRect(x + w - 3, barY, 3, barH, 1, Theme::MUTED);
+        canvas.fillRoundRect(x + w - 3, y, 2, h, 1, Theme::DIVIDER);
+        canvas.fillRoundRect(x + w - 4, barY, 3, barH, 1, Theme::PRIMARY_MUTED);
     }
+    Theme::useSmallFont(canvas);
 }

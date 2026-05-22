@@ -1,7 +1,38 @@
 #include "MessageView.h"
 #include "ui/Theme.h"
 #include "reticulum/AnnounceManager.h"
+#include <algorithm>
 #include <time.h>
+
+namespace {
+constexpr int CHAT_HEADER_H = 17;
+constexpr int CHAT_INPUT_H = Theme::CHAR_H + 4;
+
+int visibleChatLines() {
+    int chatH = Theme::CONTENT_H - CHAT_HEADER_H - CHAT_INPUT_H - 4;
+    return chatH > 0 ? chatH / Theme::CHAR_H : 1;
+}
+
+void drawFittedHeader(M5Canvas& canvas, const std::string& text, int x, int y, int maxW) {
+    if (canvas.textWidth(text.c_str()) <= maxW) {
+        canvas.drawString(text.c_str(), x, y);
+        return;
+    }
+    char buf[64];
+    int len = std::min((int)text.length(), (int)sizeof(buf) - 3);
+    while (len > 0) {
+        memcpy(buf, text.c_str(), len);
+        buf[len] = '.';
+        buf[len + 1] = '.';
+        buf[len + 2] = '\0';
+        if (canvas.textWidth(buf) <= maxW) {
+            canvas.drawString(buf, x, y);
+            return;
+        }
+        len--;
+    }
+}
+}
 
 void MessageView::onEnter() {
     _input.setActive(true);
@@ -93,7 +124,7 @@ void MessageView::refreshMessages() {
     for (const auto& cl : _chatLines) {
         totalWrappedLines += ((int)cl.text.size() / maxCharsPerLine) + 1;
     }
-    int visibleLines = (Theme::CONTENT_H - 24) / Theme::CHAR_H;
+    int visibleLines = visibleChatLines();
     _scrollOffset = std::max(0, totalWrappedLines - visibleLines);
 
     _lastRefresh = millis();
@@ -121,19 +152,18 @@ void MessageView::render(M5Canvas& canvas) {
             header = _peerHex;
         }
     }
-    canvas.setTextColor(Theme::PRIMARY);
-    canvas.setTextSize(Theme::FONT_SIZE);
-    canvas.drawString(header.c_str(), 4, baseY);
-
-    canvas.setTextColor(Theme::MUTED);
-    canvas.drawString("[Esc:back]", Theme::CONTENT_W - 60, baseY);
-
-    // Separator
-    canvas.drawFastHLine(0, baseY + 9, Theme::CONTENT_W, Theme::BORDER);
+    canvas.fillRect(0, baseY, Theme::CONTENT_W, CHAT_HEADER_H, Theme::BG_SURFACE);
+    canvas.fillRect(0, baseY + 2, 3, CHAT_HEADER_H - 4, Theme::PRIMARY);
+    Theme::useUiFont(canvas);
+    canvas.setTextColor(Theme::TEXT_PRIMARY);
+    drawFittedHeader(canvas, header, 8, baseY + 2, Theme::CONTENT_W - 16);
+    canvas.drawFastHLine(0, baseY + CHAT_HEADER_H, Theme::CONTENT_W, Theme::DIVIDER);
 
     // Chat area
-    int chatY = baseY + 11;
-    int chatH = Theme::CONTENT_H - 24;
+    Theme::useSmallFont(canvas);
+    int chatY = baseY + CHAT_HEADER_H + 2;
+    int inputY = baseY + Theme::CONTENT_H - CHAT_INPUT_H;
+    int chatH = inputY - chatY - 2;
     int maxCharsPerLine = Theme::CONTENT_W / Theme::CHAR_W;
     int currentLine = 0;
 
@@ -169,8 +199,7 @@ void MessageView::render(M5Canvas& canvas) {
     }
 
     // Input separator
-    int inputY = baseY + Theme::CONTENT_H - 12;
-    canvas.drawFastHLine(0, inputY - 2, Theme::CONTENT_W, Theme::BORDER);
+    canvas.drawFastHLine(0, inputY - 2, Theme::CONTENT_W, Theme::DIVIDER);
 
     // Text input
     _input.render(canvas, 0, inputY, Theme::CONTENT_W);
@@ -264,7 +293,7 @@ void MessageView::notifyNewMessage(const LXMFMessage& msg) {
     for (const auto& cl : _chatLines) {
         totalWrappedLines += ((int)cl.text.size() / maxCharsPerLine) + 1;
     }
-    int visibleLines = (Theme::CONTENT_H - 24) / Theme::CHAR_H;
+    int visibleLines = visibleChatLines();
     int maxScroll = std::max(0, totalWrappedLines - visibleLines);
     if (_scrollOffset >= maxScroll - 2) {
         // User is at/near bottom — auto-scroll
@@ -351,7 +380,7 @@ void MessageView::sendCurrentInput() {
     for (const auto& cl : _chatLines) {
         totalWrappedLines += ((int)cl.text.size() / maxCharsPerLine) + 1;
     }
-    int visibleLines = (Theme::CONTENT_H - 24) / Theme::CHAR_H;
+    int visibleLines = visibleChatLines();
     _scrollOffset = std::max(0, totalWrappedLines - visibleLines);
     _hasNewBelow = false;
 }

@@ -7,12 +7,11 @@ void ProgressBar::setProgress(float progress) {
 }
 
 void ProgressBar::render(M5Canvas& canvas, int x, int y, int w, int h) {
-    // Border
-    canvas.drawRect(x, y, w, h, Theme::BORDER);
+    canvas.fillRoundRect(x, y, w, h, 3, Theme::BG_ELEVATED);
+    canvas.drawRoundRect(x, y, w, h, 3, Theme::BORDER);
 
-    // Fill
     int fillW = (int)((w - 2) * _progress);
     if (fillW > 0) {
-        canvas.fillRect(x + 1, y + 1, fillW, h - 2, Theme::PRIMARY);
+        canvas.fillRoundRect(x + 1, y + 1, fillW, h - 2, 2, Theme::PRIMARY);
     }
 }
