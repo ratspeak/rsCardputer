@@ -887,9 +887,9 @@ void setup() {
 
 void loop() {
     unsigned long now = millis();
-    M5Cardputer.update();
+    M5.update();
 
-    // 1. Input (always, no throttle — responsiveness critical)
+    // 1. Input (keyboard refresh is INT-gated, with fallback polling)
     keyboard.update();
     if (keyboard.hasEvent()) {
         const KeyEvent& evt = keyboard.getEvent();

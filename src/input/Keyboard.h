@@ -46,8 +46,11 @@ public:
     void setKeyCallback(KeyCallback cb) { _keyCallback = cb; }
 
 private:
+    bool pollHardware();
+
     InputMode _mode = InputMode::Navigation;
     KeyEvent _event = {};
     bool _hasEvent = false;
+    unsigned long _lastHardwarePoll = 0;
     KeyCallback _keyCallback;
 };
