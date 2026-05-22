@@ -1,8 +1,11 @@
 #include "SDStore.h"
 #include "config/Config.h"
+#include "hal/SharedSPIBus.h"
 
 bool SDStore::begin(SPIClass* spi, int csPin) {
     if (!spi) return false;
+    SharedSPILock lock;
+    if (!lock.locked()) return false;
 
     pinMode(csPin, OUTPUT);
     digitalWrite(csPin, HIGH);
@@ -51,49 +54,67 @@ bool SDStore::begin(SPIClass* spi, int csPin) {
 }
 
 void SDStore::end() {
+    SharedSPILock lock;
+    if (!lock.locked()) return;
     SD.end();
     _ready = false;
 }
 
 uint64_t SDStore::totalBytes() const {
     if (!_ready) return 0;
+    SharedSPILock lock;
+    if (!lock.locked()) return 0;
     return SD.totalBytes();
 }
 
 uint64_t SDStore::usedBytes() const {
     if (!_ready) return 0;
+    SharedSPILock lock;
+    if (!lock.locked()) return 0;
     return SD.usedBytes();
 }
 
 bool SDStore::ensureDir(const char* path) {
     if (!_ready) return false;
+    SharedSPILock lock;
+    if (!lock.locked()) return false;
     if (SD.exists(path)) return true;
     return SD.mkdir(path);
 }
 
 bool SDStore::exists(const char* path) {
     if (!_ready) return false;
+    SharedSPILock lock;
+    if (!lock.locked()) return false;
     return SD.exists(path);
 }
 
 bool SDStore::remove(const char* path) {
     if (!_ready) return false;
+    SharedSPILock lock;
+    if (!lock.locked()) return false;
     return SD.remove(path);
 }
 
 File SDStore::openDir(const char* path) {
     if (!_ready) return File();
+    SharedSPILock lock;
+    if (!lock.locked()) return File();
     return SD.open(path);
 }
 
 bool SDStore::removeDir(const char* path) {
     if (!_ready) return false;
+    SharedSPILock lock;
+    if (!lock.locked()) return false;
     return SD.rmdir(path);
 }
 
 bool SDStore::readFile(const char* path, uint8_t* buffer, size_t maxLen, size_t& bytesRead) {
     bytesRead = 0;
     if (!_ready) return false;
+    SharedSPILock lock;
+    if (!lock.locked()) return false;
     File f = SD.open(path, FILE_READ);
     if (!f) return false;
     size_t size = f.size();
@@ -105,6 +126,8 @@ bool SDStore::readFile(const char* path, uint8_t* buffer, size_t maxLen, size_t&
 
 bool SDStore::writeAtomic(const char* path, const uint8_t* data, size_t len) {
     if (!_ready) return false;
+    SharedSPILock lock;
+    if (!lock.locked()) return false;
 
     String tmpPath = String(path) + ".tmp";
     String bakPath = String(path) + ".bak";
@@ -164,6 +187,8 @@ bool SDStore::writeString(const char* path, const String& data) {
 
 bool SDStore::writeDirect(const char* path, const uint8_t* data, size_t len) {
     if (!_ready) return false;
+    SharedSPILock lock;
+    if (!lock.locked()) return false;
     File f = SD.open(path, FILE_WRITE);
     if (!f) return false;
     size_t written = f.write(data, len);
@@ -174,6 +199,8 @@ bool SDStore::writeDirect(const char* path, const uint8_t* data, size_t len) {
 
 String SDStore::readString(const char* path) {
     if (!_ready) return "";
+    SharedSPILock lock;
+    if (!lock.locked()) return "";
 
     File f = SD.open(path, FILE_READ);
     if (!f) {
@@ -196,6 +223,8 @@ String SDStore::readString(const char* path) {
 
 bool SDStore::wipeRatcom() {
     if (!_ready) return false;
+    SharedSPILock lock;
+    if (!lock.locked()) return false;
     Serial.println("[SD] Wiping /ratcom/ ...");
     wipeDir("/ratcom/messages");
     wipeDir("/ratcom/contacts");
@@ -207,6 +236,8 @@ bool SDStore::wipeRatcom() {
 }
 
 void SDStore::wipeDir(const char* path) {
+    SharedSPILock lock;
+    if (!lock.locked()) return;
     File dir = SD.open(path);
     if (!dir || !dir.isDirectory()) return;
     File entry = dir.openNextFile();
@@ -225,6 +256,8 @@ void SDStore::wipeDir(const char* path) {
 
 bool SDStore::hasExistingData() {
     if (!_ready) return false;
+    SharedSPILock lock;
+    if (!lock.locked()) return false;
     if (SD.exists(SD_PATH_USER_CONFIG)) return true;
     if (SD.exists(SD_PATH_IDENTITY)) return true;
     File dir = SD.open(SD_PATH_MESSAGES);
@@ -240,6 +273,8 @@ bool SDStore::hasExistingData() {
 
 bool SDStore::formatForRatcom() {
     if (!_ready) return false;
+    SharedSPILock lock;
+    if (!lock.locked()) return false;
 
     Serial.println("[SD] Creating RatCom directory structure...");
     bool ok = true;

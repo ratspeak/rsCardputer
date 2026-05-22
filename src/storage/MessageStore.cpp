@@ -1,5 +1,6 @@
 #include "MessageStore.h"
 #include "config/Config.h"
+#include "hal/SharedSPIBus.h"
 // All LittleFS access goes through FlashStore (mutex-protected)
 #include <ArduinoJson.h>
 #include <Preferences.h>
@@ -92,18 +93,21 @@ void MessageStore::initReceiveCounter() {
     };
 
     if (_sd && _sd->isReady()) {
-        File dir = _sd->openDir(SD_PATH_MESSAGES);
-        if (dir && dir.isDirectory()) {
-            File peerDir = dir.openNextFile();
-            while (peerDir) {
-                if (peerDir.isDirectory()) {
-                    scanDir(peerDir);
+        SharedSPILock lock;
+        if (lock.locked()) {
+            File dir = _sd->openDir(SD_PATH_MESSAGES);
+            if (dir && dir.isDirectory()) {
+                File peerDir = dir.openNextFile();
+                while (peerDir) {
+                    if (peerDir.isDirectory()) {
+                        scanDir(peerDir);
+                    }
+                    peerDir.close();
+                    peerDir = dir.openNextFile();
                 }
-                peerDir.close();
-                peerDir = dir.openNextFile();
             }
+            dir.close();
         }
-        dir.close();
     }
 
     {
@@ -202,6 +206,8 @@ void MessageStore::migrateOldFilenames() {
     if (_sd && _sd->isReady()) {
         std::vector<String> peerDirs;
         {
+            SharedSPILock lock;
+            if (!lock.locked()) return;
             File dir = _sd->openDir(SD_PATH_MESSAGES);
             if (dir && dir.isDirectory()) {
                 File peerDir = dir.openNextFile();
@@ -220,21 +226,25 @@ void MessageStore::migrateOldFilenames() {
             struct OldFile { String name; unsigned long prefix; };
             std::vector<OldFile> oldFiles;
 
-            File d = _sd->openDir(peerPath.c_str());
-            if (!d || !d.isDirectory()) continue;
-            File entry = d.openNextFile();
-            while (entry) {
-                if (!entry.isDirectory()) {
-                    String name = entry.name();
-                    if (isOldFormat(name)) {
-                        unsigned long prefix = strtoul(name.c_str(), nullptr, 10);
-                        oldFiles.push_back({name, prefix});
+            {
+                SharedSPILock lock;
+                if (!lock.locked()) continue;
+                File d = _sd->openDir(peerPath.c_str());
+                if (!d || !d.isDirectory()) continue;
+                File entry = d.openNextFile();
+                while (entry) {
+                    if (!entry.isDirectory()) {
+                        String name = entry.name();
+                        if (isOldFormat(name)) {
+                            unsigned long prefix = strtoul(name.c_str(), nullptr, 10);
+                            oldFiles.push_back({name, prefix});
+                        }
                     }
+                    entry.close();
+                    entry = d.openNextFile();
                 }
-                entry.close();
-                entry = d.openNextFile();
+                d.close();
             }
-            d.close();
 
             if (oldFiles.empty()) continue;
 
@@ -332,18 +342,21 @@ void MessageStore::refreshConversations() {
     _conversations.clear();
 
     if (_sd && _sd->isReady()) {
-        File dir = _sd->openDir(SD_PATH_MESSAGES);
-        if (dir && dir.isDirectory()) {
-            File entry = dir.openNextFile();
-            while (entry) {
-                if (entry.isDirectory()) {
-                    _conversations.push_back(entry.name());
+        SharedSPILock lock;
+        if (lock.locked()) {
+            File dir = _sd->openDir(SD_PATH_MESSAGES);
+            if (dir && dir.isDirectory()) {
+                File entry = dir.openNextFile();
+                while (entry) {
+                    if (entry.isDirectory()) {
+                        _conversations.push_back(entry.name());
+                    }
+                    entry.close();
+                    entry = dir.openNextFile();
                 }
-                entry.close();
-                entry = dir.openNextFile();
             }
+            dir.close();
         }
-        dir.close();
     }
 
     {
@@ -480,22 +493,25 @@ std::vector<LXMFMessage> MessageStore::loadConversation(const std::string& peerH
 
     if (_sd && _sd->isReady()) {
         sourceDir = sdConversationDir(peerHex);
-        File d = _sd->openDir(sourceDir.c_str());
-        if (d && d.isDirectory()) {
-            File entry = d.openNextFile();
-            while (entry) {
-                if (!entry.isDirectory()) {
-                    String name = entry.name();
-                    if (!name.startsWith(".")) {
-                        filenames.push_back(name);
+        SharedSPILock lock;
+        if (lock.locked()) {
+            File d = _sd->openDir(sourceDir.c_str());
+            if (d && d.isDirectory()) {
+                File entry = d.openNextFile();
+                while (entry) {
+                    if (!entry.isDirectory()) {
+                        String name = entry.name();
+                        if (!name.startsWith(".")) {
+                            filenames.push_back(name);
+                        }
                     }
+                    entry.close();
+                    entry = d.openNextFile();
                 }
-                entry.close();
-                entry = d.openNextFile();
+                useSD = true;
             }
-            useSD = true;
+            d.close();
         }
-        d.close();
     }
 
     if (!useSD && _flash) {
@@ -634,22 +650,25 @@ std::vector<std::string> MessageStore::loadRecentMessageIds(size_t maxIds) const
 int MessageStore::messageCount(const std::string& peerHex) const {
     if (_sd && _sd->isReady()) {
         String sdDir = sdConversationDir(peerHex);
-        File d = _sd->openDir(sdDir.c_str());
-        if (d && d.isDirectory()) {
-            int count = 0;
-            File entry = d.openNextFile();
-            while (entry) {
-                if (!entry.isDirectory()) {
-                    String name = entry.name();
-                    if (!name.startsWith(".")) count++;
+        SharedSPILock lock;
+        if (lock.locked()) {
+            File d = _sd->openDir(sdDir.c_str());
+            if (d && d.isDirectory()) {
+                int count = 0;
+                File entry = d.openNextFile();
+                while (entry) {
+                    if (!entry.isDirectory()) {
+                        String name = entry.name();
+                        if (!name.startsWith(".")) count++;
+                    }
+                    entry.close();
+                    entry = d.openNextFile();
                 }
-                entry.close();
-                entry = d.openNextFile();
+                d.close();
+                return count;
             }
             d.close();
-            return count;
         }
-        d.close();
     }
 
     String dir = conversationDir(peerHex);
@@ -676,17 +695,21 @@ bool MessageStore::deleteConversation(const std::string& peerHex) {
 
     if (_sd && _sd->isReady()) {
         String sdDir = sdConversationDir(peerHex);
-        File d = _sd->openDir(sdDir.c_str());
-        if (d && d.isDirectory()) {
-            File entry = d.openNextFile();
-            while (entry) {
-                String path = sdDir + "/" + entry.name();
-                entry.close();
-                _sd->remove(path.c_str());
-                entry = d.openNextFile();
+        SharedSPILock lock;
+        if (lock.locked()) {
+            File d = _sd->openDir(sdDir.c_str());
+            if (d && d.isDirectory()) {
+                File entry = d.openNextFile();
+                while (entry) {
+                    String path = sdDir + "/" + entry.name();
+                    entry.close();
+                    _sd->remove(path.c_str());
+                    entry = d.openNextFile();
+                }
             }
+            d.close();
+            _sd->removeDir(sdDir.c_str());
         }
-        _sd->removeDir(sdDir.c_str());
     }
 
     String dir = conversationDir(peerHex);
@@ -819,11 +842,14 @@ bool MessageStore::updateMessageStatus(const std::string& peerHex, double timest
     bool updated = false;
     if (_sd && _sd->isReady()) {
         String sdDir = sdConversationDir(peerHex);
-        updated = updateInDir(
-            [this](const char* p) { return _sd->openDir(p); },
-            [this](const char* p) { return _sd->readString(p); },
-            [this](const char* p, const String& d) { return _sd->writeString(p, d); },
-            sdDir);
+        SharedSPILock lock;
+        if (lock.locked()) {
+            updated = updateInDir(
+                [this](const char* p) { return _sd->openDir(p); },
+                [this](const char* p) { return _sd->readString(p); },
+                [this](const char* p, const String& d) { return _sd->writeString(p, d); },
+                sdDir);
+        }
     }
 
     if (_flash) {
@@ -876,13 +902,16 @@ int MessageStore::unreadCountForPeer(const std::string& peerHex) const {
 
     if (_sd && _sd->isReady()) {
         String sdDir = sdConversationDir(peerHex);
-        File d = _sd->openDir(sdDir.c_str());
-        if (d && d.isDirectory()) {
-            countInDir(d);
+        SharedSPILock lock;
+        if (lock.locked()) {
+            File d = _sd->openDir(sdDir.c_str());
+            if (d && d.isDirectory()) {
+                countInDir(d);
+                d.close();
+                return count;
+            }
             d.close();
-            return count;
         }
-        d.close();
     }
 
     if (_flash) {

@@ -2,6 +2,7 @@
 #include "config/Config.h"
 #include "storage/SDStore.h"
 #include "storage/FlashStore.h"
+#include "hal/SharedSPIBus.h"
 #include "transport/LoRaInterface.h"
 #include <ArduinoJson.h>
 // LittleFS access through FlashStore (mutex-protected)
@@ -526,11 +527,15 @@ void AnnounceManager::loadContacts() {
 
     // Load from SD first (primary)
     if (_sd && _sd->isReady()) {
-        File dir = _sd->openDir(SD_PATH_CONTACTS);
-        if (dir && dir.isDirectory()) {
-            loadFromDir(dir, "SD");
-        } else {
-            Serial.println("[CONTACT] SD contacts dir not found");
+        SharedSPILock lock;
+        if (lock.locked()) {
+            File dir = _sd->openDir(SD_PATH_CONTACTS);
+            if (dir && dir.isDirectory()) {
+                loadFromDir(dir, "SD");
+            } else {
+                Serial.println("[CONTACT] SD contacts dir not found");
+            }
+            dir.close();
         }
     } else {
         Serial.println("[CONTACT] SD not ready for contact loading");
