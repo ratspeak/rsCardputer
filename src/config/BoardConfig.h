@@ -4,7 +4,7 @@
 // RatCom — M5Stack Cardputer Adv + Cap LoRa-1262 Pin Definitions
 // =============================================================================
 
-// --- SX1262 LoRa Radio (Custom SPI — HSPI) ---
+// --- SX1262 LoRa Radio (external SPI bus — FSPI/SPI2) ---
 #define LORA_SCK    40
 #define LORA_MISO   39
 #define LORA_MOSI   14
@@ -19,6 +19,8 @@
 #define LORA_HAS_TCXO           true
 #define LORA_DIO2_AS_RF_SWITCH  true
 #define LORA_TCXO_VOLTAGE       0x06   // MODE_TCXO_3_0V_6X — proven on Cap LoRa-1262
+#define LORA_USE_DCDC_REGULATOR false  // M5 Cap LoRa-1262 examples use LDO-only regulator mode
+#define LORA_OCP_TUNED          0x28   // RNode Cardputer Adv board tuning
 #define LORA_DEFAULT_FREQ       915000000
 #define LORA_DEFAULT_BW         250000   // Long Fast preset (matches Ratdeck)
 #define LORA_DEFAULT_SF         11
@@ -52,7 +54,7 @@
 // --- Battery ---
 // ADC via M5Unified, 1750mAh, TP4057 charger
 
-// --- SD Card (shares HSPI with LoRa) ---
+// --- SD Card (shares FSPI/SPI2 with LoRa) ---
 #define SD_CS       12   // Separate CS from LoRa (CS=5)
 
 // --- Hardware Constants ---

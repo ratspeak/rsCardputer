@@ -261,6 +261,13 @@ void SX1262::enableTCXO() {
     }
 }
 
+void SX1262::enableDio2RfSwitch() {
+    if (_dio2_as_rf_switch) {
+        uint8_t byte = 0x01;
+        executeOpcode(OP_DIO2_RF_CTRL_6X, &byte, 1);
+    }
+}
+
 bool SX1262::loraMode() {
     uint8_t mode = MODE_LONG_RANGE_MODE_6X;
     for (int attempt = 0; attempt < 5; attempt++) {
@@ -325,8 +332,11 @@ bool SX1262::begin(uint32_t frequency) {
     // Force STDBY_XOSC to start the TCXO oscillator
     standby();
 
-    // Set DC-DC regulator mode (both T-Deck Plus and Cap LoRa-1262 have inductors)
-    uint8_t regMode = 0x01;  // 0x00=LDO (default), 0x01=DC-DC
+    // Set regulator mode. The Cardputer Cap LoRa-1262 reference sketch uses
+    // LDO-only mode, while boards such as T-Deck Plus can use DC-DC mode.
+    uint8_t regMode = LORA_USE_DCDC_REGULATOR ? 0x01 : 0x00;  // 0x00=LDO, 0x01=DC-DC
+    Serial.printf("[SX1262] Regulator mode: %s\n",
+                  LORA_USE_DCDC_REGULATOR ? "DC-DC" : "LDO");
     executeOpcode(OP_REGULATOR_MODE_6X, &regMode, 1);
 
     // Calibrate from STDBY_RC with TCXO already running
@@ -347,10 +357,7 @@ bool SX1262::begin(uint32_t frequency) {
 
     setSyncWord(SYNC_WORD_6X);
 
-    if (_dio2_as_rf_switch) {
-        uint8_t byte = 0x01;
-        executeOpcode(OP_DIO2_RF_CTRL_6X, &byte, 1);
-    }
+    enableDio2RfSwitch();
 
     rxAntEnable();
     setFrequency(_frequency);
@@ -379,6 +386,7 @@ bool SX1262::begin(uint32_t frequency) {
     irqBuf[6] = 0x00;  // DIO3 mask MSB
     irqBuf[7] = 0x00;  // DIO3 mask LSB
     executeOpcode(OP_SET_IRQ_FLAGS_6X, irqBuf, 8);
+    enableDio2RfSwitch();
 
     // Keep TCXO running between TX/RX transitions (don't fall back to RC oscillator)
     uint8_t fallback = MODE_FALLBACK_STDBY_XOSC_6X;
@@ -422,6 +430,7 @@ int SX1262::beginPacket(int implicitHeader) {
 int SX1262::endPacket(bool async) {
     if (!ensureLoRaMode("endPacket")) return 0;
     setPacketParams(_preambleLength, _implicitHeaderMode, _payloadLength, _crcMode);
+    enableDio2RfSwitch();
 
     uint8_t timeout[3] = {0};
     _txStartMs = millis();
@@ -528,6 +537,7 @@ void SX1262::receive(int size) {
         pinMode(_irq, INPUT);
         uint8_t irqBuf[8] = {0xFF, 0xFF, 0x00, IRQ_RX_DONE_MASK_6X, 0x00, 0x00, 0x00, 0x00};
         executeOpcode(OP_SET_IRQ_FLAGS_6X, irqBuf, 8);
+        enableDio2RfSwitch();
         attachInterrupt(digitalPinToInterrupt(_irq), onDio0Rise, RISING);
     }
 
@@ -731,7 +741,7 @@ void SX1262::setTxPower(int level) {
     else if (level < -9) level = -9;
     _txp = level;
 
-    writeRegister(REG_OCP_6X, OCP_TUNED);
+    writeRegister(REG_OCP_6X, LORA_OCP_TUNED);
 
     uint8_t tx_buf[2];
     tx_buf[0] = level;
@@ -803,6 +813,11 @@ void SX1262::setPreambleLength(long length) {
     setPacketParams(length, _implicitHeaderMode, _payloadLength, _crcMode);
 }
 
+void SX1262::setInvertIQ(bool invert) {
+    _invertIq = invert;
+    setPacketParams(_preambleLength, _implicitHeaderMode, _payloadLength, _crcMode);
+}
+
 void SX1262::enableCrc() {
     _crcMode = 1;
     setPacketParams(_preambleLength, _implicitHeaderMode, _payloadLength, _crcMode);
@@ -822,27 +837,37 @@ void SX1262::setModulationParams(uint8_t sf, uint8_t bw, uint8_t cr, int ldro) {
     // Calling from RX/TX mode is silently rejected by the hardware.
     standby();
     if (!ensureLoRaMode("setModulationParams")) return;
-    uint8_t buf[4] = {sf, bw, cr, (uint8_t)ldro};
-    executeOpcode(OP_MODULATION_PARAMS_6X, buf, 4);
+    // Match the RNode SX1262 driver: write the complete LoRa parameter block,
+    // including reserved trailing bytes, so modem state is not left stale.
+    uint8_t buf[8] = {sf, bw, cr, (uint8_t)ldro, 0x00, 0x00, 0x00, 0x00};
+    executeOpcode(OP_MODULATION_PARAMS_6X, buf, 8);
 }
 
 void SX1262::setPacketParams(uint32_t preamble, uint8_t headermode, uint8_t length, uint8_t crc) {
     if (!ensureLoRaMode("setPacketParams")) return;
 
-    uint8_t buf[6];
+    // Match the RNode SX1262 driver: write the complete packet parameter block.
+    uint8_t buf[9];
     buf[0] = (uint8_t)((preamble & 0xFF00) >> 8);
     buf[1] = (uint8_t)(preamble & 0x00FF);
     buf[2] = headermode;
     buf[3] = length;
     buf[4] = crc;
-    buf[5] = 0x00;  // Standard IQ (no inversion)
-    executeOpcode(OP_PACKET_PARAMS_6X, buf, 6);
+    buf[5] = _invertIq ? 0x01 : 0x00;
+    buf[6] = 0x00;
+    buf[7] = 0x00;
+    buf[8] = 0x00;
+    executeOpcode(OP_PACKET_PARAMS_6X, buf, 9);
 
     // SX1262 errata 15.1: IQ polarity register must be corrected after SetPacketParams.
     // For standard IQ (no inversion), bit 2 of register 0x0736 must be SET.
     // For inverted IQ, bit 2 must be CLEARED. (RadioLib: SX126x.cpp)
     uint8_t iqReg = readRegister(REG_IQ_POLARITY_6X);
-    iqReg |= 0x04;  // Standard IQ: set bit 2
+    if (_invertIq) {
+        iqReg &= ~0x04;
+    } else {
+        iqReg |= 0x04;
+    }
     writeRegister(REG_IQ_POLARITY_6X, iqReg);
 }
 
@@ -955,6 +980,7 @@ void SX1262::onReceive(void(*callback)(int)) {
         buf[7] = 0x00;
 
         executeOpcode(OP_SET_IRQ_FLAGS_6X, buf, 8);
+        enableDio2RfSwitch();
         attachInterrupt(digitalPinToInterrupt(_irq), onDio0Rise, RISING);
     } else {
         detachInterrupt(digitalPinToInterrupt(_irq));

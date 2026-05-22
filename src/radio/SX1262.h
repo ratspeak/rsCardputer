@@ -49,6 +49,8 @@ public:
     void setCodingRate4(int denominator);
     uint8_t getCodingRate4();
     void setPreambleLength(long length);
+    void setInvertIQ(bool invert);
+    bool getInvertIQ() const { return _invertIq; }
     void enableCrc();
     void disableCrc();
 
@@ -98,6 +100,7 @@ private:
     void calibrate();
     bool calibrate_image(uint32_t frequency);
     void enableTCXO();
+    void enableDio2RfSwitch();
     void setModulationParams(uint8_t sf, uint8_t bw, uint8_t cr, int ldro);
     void setPacketParams(uint32_t preamble, uint8_t headermode, uint8_t length, uint8_t crc);
     void setSyncWord(uint16_t sw);
@@ -122,6 +125,7 @@ private:
     uint8_t  _cr = 0;
     int8_t   _txp = 0;
     bool     _ldro = false;
+    bool     _invertIq = false;
     long     _preambleLength = 0;
 
     int  _packetIndex = 0;

@@ -49,7 +49,9 @@
 SET_LOOP_TASK_STACK_SIZE(16384);  // 16KB — needed for Ed25519 crypto in RNS boot
 
 // --- Hardware ---
-SPIClass loraSPI(HSPI);
+// Cardputer ADV display uses Arduino HSPI/SPI3 via M5GFX. Keep the external
+// LoRa/SD bus on FSPI/SPI2 so display refreshes cannot reconfigure radio SPI.
+SPIClass loraSPI(FSPI);
 SX1262 radio(&loraSPI,
     LORA_CS, LORA_SCK, LORA_MOSI, LORA_MISO,
     LORA_RST, LORA_IRQ, LORA_BUSY, LORA_RXEN,
@@ -286,7 +288,9 @@ void onHotkeyDiag() {
                       (unsigned long)radio.getSignalBandwidth(),
                       radio.getCodingRate4(),
                       radio.getTxPower());
+        Serial.printf("Regulator: %s\n", LORA_USE_DCDC_REGULATOR ? "DC-DC" : "LDO");
         Serial.printf("Preamble: %ld symbols\n", radio.getPreambleLength());
+        Serial.printf("IQ invert: %s\n", radio.getInvertIQ() ? "ON" : "off");
         Serial.printf("SyncWord regs: 0x%02X%02X\n",
             radio.readRegister(REG_SYNC_WORD_MSB_6X),
             radio.readRegister(REG_SYNC_WORD_LSB_6X));
@@ -304,7 +308,7 @@ void onHotkeyDiag() {
         Serial.printf("  0x0736 (IQ config):   0x%02X\n", radio.readRegister(0x0736));
         Serial.printf("  0x08AC (LNA):         0x%02X\n", radio.readRegister(0x08AC));
         Serial.printf("  0x08E7 (OCP):         0x%02X\n", radio.readRegister(0x08E7));
-        Serial.printf("  0x0902 (TX clamp):    0x%02X\n", radio.readRegister(0x0902));
+        Serial.printf("  0x08D8 (TX clamp):    0x%02X\n", radio.readRegister(REG_TX_CLAMP_CONFIG_6X));
         uint8_t packetType = radio.getPacketType();
         const char* packetTypeName =
             (packetType == 0x00) ? "GFSK" :
@@ -426,6 +430,101 @@ static bool enableCapLoRaRfSwitch() {
     return true;
 }
 
+static void cycleDiagnosticTxPower() {
+    static constexpr int8_t kPowers[] = {-9, -3, 0, 2, 6, 10, 14, 17, LORA_MAX_TX_POWER};
+    int current = radio.getTxPower();
+    size_t next = 0;
+    for (size_t i = 0; i < sizeof(kPowers) / sizeof(kPowers[0]); i++) {
+        if (current == kPowers[i]) {
+            next = (i + 1) % (sizeof(kPowers) / sizeof(kPowers[0]));
+            break;
+        }
+    }
+
+    radio.setTxPower(kPowers[next]);
+    radio.receive();
+    Serial.printf("[SERIAL] transient TX power set to %d dBm\n", (int)kPowers[next]);
+}
+
+static void setDiagnosticMinTxPower() {
+    radio.setTxPower(-9);
+    radio.receive();
+    Serial.println("[SERIAL] transient TX power set to -9 dBm");
+}
+
+static void toggleDiagnosticInvertIQ() {
+    radio.setInvertIQ(!radio.getInvertIQ());
+    radio.receive();
+    Serial.printf("[SERIAL] IQ inversion %s\n", radio.getInvertIQ() ? "ON" : "off");
+}
+
+static void nudgeDiagnosticFrequency(int32_t deltaHz) {
+    uint32_t next = radio.getFrequency() + deltaHz;
+    radio.setFrequency(next);
+    radio.receive();
+    Serial.printf("[SERIAL] transient frequency set to %lu Hz\n", (unsigned long)next);
+}
+
+static void printSerialHelp() {
+    Serial.println("[SERIAL] commands: ? help | a announce | t raw-test | d diag | r rssi | p tx-power | m min-power | q iq | +/- freq | f rf-switch");
+}
+
+static void handleSerialCommands() {
+    while (Serial.available() > 0) {
+        char c = (char)Serial.read();
+        if (c == '\r' || c == '\n' || c == ' ') continue;
+        switch (c) {
+            case '?':
+                printSerialHelp();
+                break;
+            case 'a':
+            case 'A':
+                announceWithName(false);
+                break;
+            case 't':
+            case 'T':
+                onHotkeyRadioTest();
+                break;
+            case 'd':
+            case 'D':
+                onHotkeyDiag();
+                break;
+            case 'r':
+            case 'R':
+                onHotkeyRssiMonitor();
+                break;
+            case 'p':
+            case 'P':
+                cycleDiagnosticTxPower();
+                break;
+            case 'm':
+            case 'M':
+                setDiagnosticMinTxPower();
+                break;
+            case 'q':
+            case 'Q':
+                toggleDiagnosticInvertIQ();
+                break;
+            case '+':
+            case '=':
+                nudgeDiagnosticFrequency(1000);
+                break;
+            case '-':
+            case '_':
+                nudgeDiagnosticFrequency(-1000);
+                break;
+            case 'f':
+            case 'F':
+                enableCapLoRaRfSwitch();
+                break;
+            default:
+                Serial.printf("[SERIAL] unknown command '%c'\n", c);
+                printSerialHelp();
+                break;
+        }
+    }
+}
+
 // =============================================================================
 // Setup
 // =============================================================================
@@ -535,7 +634,7 @@ void setup() {
     }
     ui.render();
 
-    // Initialize SD card (shares HSPI with radio — must init after radio)
+    // Initialize SD card (shares FSPI/SPI2 with radio — must init after radio)
     bootScreen.setProgress(0.65f, "Checking SD card...");
     ui.render();
     if (sdStore.begin(&loraSPI, SD_CS)) {
@@ -912,6 +1011,7 @@ void setup() {
 void loop() {
     unsigned long now = millis();
     M5.update();
+    handleSerialCommands();
 
     // 1. Input (keyboard refresh is INT-gated, with fallback polling)
     keyboard.update();
