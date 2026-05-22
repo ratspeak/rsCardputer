@@ -3,6 +3,31 @@
 #include <M5Unified.h>
 #include <time.h>
 
+namespace {
+int clampBatteryLevel(int level) {
+    if (level < 0) return 0;
+    if (level > 100) return 100;
+    return level;
+}
+
+int readBatteryLevel() {
+    int level = M5.Power.getBatteryLevel();
+    if (level >= 0) return clampBatteryLevel(level);
+
+    int millivolts = M5.Power.getBatteryVoltage();
+    if (millivolts > 0) {
+        float pct = ((float)millivolts - 3300.0f) * 100.0f / (4150.0f - 3350.0f);
+        return clampBatteryLevel((int)(pct + 0.5f));
+    }
+
+    return 0;
+}
+
+bool isChargingKnown() {
+    return M5.Power.isCharging() == m5::Power_Class::is_charging_t::is_charging;
+}
+}
+
 void StatusBar::render(M5Canvas& canvas) {
     // Dark panel background
     canvas.fillRect(0, 0, Theme::SCREEN_W, Theme::STATUS_BAR_H, Theme::BAR_BG);
@@ -10,10 +35,10 @@ void StatusBar::render(M5Canvas& canvas) {
 
     canvas.setTextSize(Theme::FONT_SIZE);
 
-    // Left side: clock (if GPS time synced) or battery icon + %
+    // Left side: battery icon + %, plus clock when time is known.
     unsigned long now = millis();
     if (_smoothedBattery < 0 || now - _lastBatteryRead >= 2000) {
-        int raw = M5.Power.getBatteryLevel();
+        int raw = readBatteryLevel();
         if (_smoothedBattery < 0) {
             _smoothedBattery = (float)raw;
         } else {
@@ -21,9 +46,8 @@ void StatusBar::render(M5Canvas& canvas) {
         }
         _lastBatteryRead = now;
     }
-    int batLevel = (int)(_smoothedBattery + 0.5f);
-    if (batLevel < 0) batLevel = 0;
-    if (batLevel > 100) batLevel = 100;
+    int batLevel = clampBatteryLevel((int)(_smoothedBattery + 0.5f));
+    bool charging = isChargingKnown();
 
     // Battery icon: always shown (compact)
     int bx = 2, by = 2, bw = 14, bh = 7;
@@ -34,10 +58,22 @@ void StatusBar::render(M5Canvas& canvas) {
     canvas.fillRect(bx + bw, by + 2, 2, 3, batColor);
     int fillW = (bw - 2) * batLevel / 100;
     if (fillW > 0) canvas.fillRect(bx + 1, by + 1, fillW, bh - 2, batColor);
+    if (charging) {
+        canvas.drawLine(bx + 7, by + 1, bx + 5, by + 5, Theme::BG);
+        canvas.drawLine(bx + 5, by + 5, bx + 8, by + 5, Theme::BG);
+        canvas.drawLine(bx + 8, by + 5, bx + 6, by + 8, Theme::BG);
+    }
 
     int textX = bx + bw + 4;
 
-    // Show clock if system time is valid (GPS or NTP), otherwise battery %
+    char batStr[6];
+    snprintf(batStr, sizeof(batStr), "%d%%", batLevel);
+    canvas.setTextColor(charging ? Theme::ACCENT : batColor);
+    canvas.setCursor(textX, Theme::STATUS_PAD);
+    canvas.print(batStr);
+    textX += strlen(batStr) * Theme::CHAR_W + 6;
+
+    // Show clock too if system time is valid (GPS or NTP).
     time_t t = time(nullptr);
     if (t > 1700000000) {
         struct tm* tm = localtime(&t);
@@ -46,12 +82,6 @@ void StatusBar::render(M5Canvas& canvas) {
         canvas.setTextColor(Theme::PRIMARY);
         canvas.setCursor(textX, Theme::STATUS_PAD);
         canvas.print(clockStr);
-    } else {
-        char batStr[6];
-        snprintf(batStr, sizeof(batStr), "%d%%", batLevel);
-        canvas.setTextColor(batColor);
-        canvas.setCursor(textX, Theme::STATUS_PAD);
-        canvas.print(batStr);
     }
 
     // Center text — flash "ANNOUNCED" briefly, otherwise show mode
