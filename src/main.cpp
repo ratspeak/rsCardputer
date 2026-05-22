@@ -40,6 +40,7 @@
 #include "audio/AudioNotify.h"
 #include "transport/BLEStub.h"
 #include "hal/GPSManager.h"
+#include "platform/RsCardputerModeSwitch.h"
 #include <Preferences.h>
 #include <atomic>
 #include <cctype>
@@ -744,6 +745,11 @@ void setup() {
     Serial.printf("  RatCom v%s\n", RATCOM_VERSION_STRING);
     Serial.println("  M5Stack Cardputer Adv");
     Serial.println("=================================");
+
+    auto launcherBoot = rs_cardputer_adv::returnToLauncherNextBoot();
+    if (!launcherBoot.ok) {
+        Serial.printf("[BOOT] Launcher return unavailable: %s\n", launcherBoot.message);
+    }
 
     esp_reset_reason_t reason = esp_reset_reason();
     const char* reasonStr = "UNKNOWN";
