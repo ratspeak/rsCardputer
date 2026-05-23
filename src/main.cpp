@@ -1229,7 +1229,10 @@ void loop() {
         const KeyEvent& evt = keyboard.getEvent();
         power.activity();
 
-        if (helpOverlay.isVisible()) {
+        if (ui.isBootMode()) {
+            ui.handleKey(evt);
+        }
+        else if (helpOverlay.isVisible()) {
             helpOverlay.handleKey(evt);
             ui.setOverlay(helpOverlay.isVisible() ? &helpOverlay : nullptr);
         }
