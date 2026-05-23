@@ -146,7 +146,7 @@ RNode mode behaves like a host-controlled radio, not a standalone messenger.
 - USB CDC serial carries the normal RNode KISS protocol where host support
   allows it.
 - BLE is enabled for phone/client pairing.
-- Hold Enter/OK for three seconds to enter BLE pairing mode.
+- Hold `p` or Enter/OK for three seconds to enter BLE pairing mode.
 - Pairing mode times out after 30 seconds if no client connects.
 - Host clients can change the RNode radio profile through normal RNode
   commands.

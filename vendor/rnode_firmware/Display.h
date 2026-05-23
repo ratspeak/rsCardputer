@@ -236,6 +236,7 @@ uint8_t disp_page = START_PAGE;
   int cp_waterfall[CP_WF_SIZE] = {0};
   int cp_waterfall_head = 0;
   uint8_t cp_charge_tick = 0;
+  uint32_t cp_pairing_tip_until = 0;
 #endif
 
 static const uint8_t one_counts[256] = {
@@ -1594,6 +1595,34 @@ void cp_draw_pairing_screen() {
   }
 }
 
+bool cp_pairing_tip_active() {
+  return (int32_t)(cp_pairing_tip_until - millis()) > 0;
+}
+
+void cp_draw_pairing_tip_overlay() {
+  if (!cp_pairing_tip_active() || bt_state == BT_STATE_PAIRING) return;
+
+  int w = 196;
+  int h = 54;
+  int x = (DISP_W - w) / 2;
+  int y = DISP_H - h - 10;
+
+  m5canvas.fillRoundRect(x + 2, y + 2, w, h, 5, SSD1306_BLACK);
+  m5canvas.fillRoundRect(x, y, w, h, 5, CLR_BG_PANEL);
+  m5canvas.drawRoundRect(x, y, w, h, 5, CLR_TEXT_ACCENT);
+
+  m5canvas.setFont(&fonts::Font2);
+  m5canvas.setTextSize(1);
+  m5canvas.setTextColor(CLR_TEXT_PRIMARY);
+  m5canvas.setCursor(x + 12, y + 8);
+  m5canvas.print("Press and hold `p`");
+  m5canvas.setCursor(x + 12, y + 24);
+  m5canvas.print("or OK to enter");
+  m5canvas.setCursor(x + 12, y + 40);
+  m5canvas.print("pairing mode.");
+  m5canvas.setFont(nullptr);
+}
+
 void cp_draw_fw_update_screen() {
   m5canvas.fillSprite(SSD1306_BLACK);
 
@@ -1684,6 +1713,8 @@ void cp_render_frame() {
   } else {
     cp_draw_idle_content();
   }
+
+  cp_draw_pairing_tip_overlay();
 }
 #endif
 
@@ -1826,6 +1857,14 @@ void display_unblank() {
   last_unblank_event = millis();
   display_blank_frame_drawn = false;
 }
+
+#if BOARD_MODEL == BOARD_CARDPUTER_ADV
+void cardputer_show_pairing_tip() {
+  cp_pairing_tip_until = millis() + 3500;
+  display_unblank();
+  last_disp_update = 0;
+}
+#endif
 
 void ext_fb_enable() {
   disp_ext_fb = true;

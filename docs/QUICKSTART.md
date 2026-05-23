@@ -38,8 +38,8 @@ The Cardputer Adv uses USB-Serial/JTAG — the port appears as `/dev/cu.usbmodem
 4. In Ratcom mode, first boot asks for timezone and display name
 5. The Home screen shows your LXMF address and radio status
 
-RNode mode is a host-controlled radio mode. Hold Enter/OK for three seconds to
-enter BLE pairing mode.
+RNode mode is a host-controlled radio mode. Hold `p` or Enter/OK for three
+seconds to enter BLE pairing mode.
 
 ## Navigation
 

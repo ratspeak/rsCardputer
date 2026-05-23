@@ -46,10 +46,17 @@
     bool cardputer_enter_down = false;
     bool cardputer_enter_pairing_sent = false;
     unsigned long cardputer_enter_down_last = 0;
+    bool cardputer_p_down = false;
+    bool cardputer_p_pairing_sent = false;
+    unsigned long cardputer_p_down_last = 0;
   #endif
 
   // Forward declaration
   void button_event(uint8_t event, unsigned long duration);
+
+  #if BOARD_MODEL == BOARD_CARDPUTER_ADV && HAS_DISPLAY
+    void cardputer_show_pairing_tip();
+  #endif
 
   void input_init() {
     pinMode(PIN_BUTTON, INPUT_PULLUP);
@@ -96,6 +103,21 @@
     #if BOARD_MODEL == BOARD_CARDPUTER_ADV
       M5Cardputer.update();
       Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
+      bool keyboard_changed = M5Cardputer.Keyboard.isChange();
+      bool keyboard_pressed = M5Cardputer.Keyboard.isPressed() > 0;
+      bool display_was_blanked = display_blanked;
+      bool p_pressed = false;
+
+      for (auto key : status.word) {
+        if (key == 'p' || key == 'P') {
+          p_pressed = true;
+          break;
+        }
+      }
+
+      if (keyboard_pressed) {
+        display_unblank();
+      }
 
       if (status.enter) {
         if (!cardputer_enter_down) {
@@ -111,23 +133,22 @@
         cardputer_enter_pairing_sent = false;
       }
 
-      if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
-        for (auto key : status.word) {
-          switch (key) {
-            case 'p':
-              button_event(EVENT_BUTTON_CLICK, 5500);
-              break;
-            case 'i':
-              button_event(EVENT_BUTTON_CLICK, 50);
-              break;
-            case 'r':
-              button_event(EVENT_BUTTON_CLICK, 10500);
-              break;
-            case 's':
-              button_event(EVENT_BUTTON_CLICK, 800);
-              break;
-          }
+      if (p_pressed) {
+        if (!cardputer_p_down) {
+          cardputer_p_down = true;
+          cardputer_p_pairing_sent = false;
+          cardputer_p_down_last = millis();
+        } else if (!cardputer_p_pairing_sent && millis() - cardputer_p_down_last >= CARDPUTER_PAIR_HOLD_MS) {
+          button_event(EVENT_BUTTON_CLICK, 5500);
+          cardputer_p_pairing_sent = true;
         }
+      } else {
+        cardputer_p_down = false;
+        cardputer_p_pairing_sent = false;
+      }
+
+      if (keyboard_changed && keyboard_pressed && !display_was_blanked && !status.enter && !p_pressed) {
+        cardputer_show_pairing_tip();
       }
     #endif
   }
