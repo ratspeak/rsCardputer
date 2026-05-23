@@ -9,7 +9,7 @@ build/
 __pycache__
 *.pyc
 .DS_Store
-docs/
+dist/
 ratcom-firmware/
 ratcom-firmware.zip
 ratcom-merged.bin

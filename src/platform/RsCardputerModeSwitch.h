@@ -33,6 +33,18 @@ inline const esp_partition_t* modePartition(FirmwareMode mode) {
     return esp_partition_find_first(ESP_PARTITION_TYPE_APP, modeSubtype(mode), nullptr);
 }
 
+inline const char* modeName(FirmwareMode mode) {
+    switch (mode) {
+        case FirmwareMode::Launcher:
+            return "Launcher";
+        case FirmwareMode::Ratcom:
+            return "Ratcom";
+        case FirmwareMode::RNode:
+            return "RNode";
+    }
+    return "Unknown";
+}
+
 inline SwitchResult setNextBoot(FirmwareMode mode) {
     const esp_partition_t* target = modePartition(mode);
     if (!target) {
@@ -50,5 +62,12 @@ inline SwitchResult setNextBoot(FirmwareMode mode) {
 inline SwitchResult returnToLauncherNextBoot() {
     return setNextBoot(FirmwareMode::Launcher);
 }
+
+// Compatibility aliases for the launcher and RNode helper.
+inline esp_partition_subtype_t mode_subtype(FirmwareMode mode) { return modeSubtype(mode); }
+inline const esp_partition_t* mode_partition(FirmwareMode mode) { return modePartition(mode); }
+inline const char* mode_name(FirmwareMode mode) { return modeName(mode); }
+inline SwitchResult set_next_boot(FirmwareMode mode) { return setNextBoot(mode); }
+inline SwitchResult return_to_launcher_next_boot() { return returnToLauncherNextBoot(); }
 
 } // namespace rs_cardputer_adv

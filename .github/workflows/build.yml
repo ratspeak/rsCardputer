@@ -1,4 +1,4 @@
-name: PlatformIO Build
+name: Firmware Build
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -18,48 +18,26 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install PlatformIO
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install Python tools
         run: pip install platformio esptool
 
-      - name: Build firmware
-        run: pio run -e ratcom_915
+      - name: Prepare RNode Arduino dependencies
+        run: make -C vendor/rnode_firmware prep-cardputer_adv
 
-      - name: Merge single .bin for M5Burner
-        run: |
-          esptool.py --chip esp32s3 merge-bin \
-            --flash-mode dio --flash-size 8MB \
-            -o ratcom-merged.bin \
-            0x0000 .pio/build/ratcom_915/bootloader.bin \
-            0x8000 .pio/build/ratcom_915/partitions.bin \
-            0xe000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
-            0x10000 .pio/build/ratcom_915/firmware.bin
+      - name: Build release package
+        run: make package
 
-      - name: Package firmware ZIP
-        run: |
-          mkdir -p ratcom-firmware
-          cp .pio/build/ratcom_915/bootloader.bin ratcom-firmware/
-          cp .pio/build/ratcom_915/partitions.bin ratcom-firmware/
-          cp ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin ratcom-firmware/
-          cp .pio/build/ratcom_915/firmware.bin ratcom-firmware/
-          cp ratcom-merged.bin ratcom-firmware/
-          cat > ratcom-firmware/manifest.json << 'MANIFEST'
-          {
-            "chipFamily": "ESP32-S3",
-            "flashSize": "8MB",
-            "flashMode": "dio",
-            "flashFreq": "80m",
-            "parts": [
-              { "path": "bootloader.bin", "offset": "0x0000" },
-              { "path": "partitions.bin", "offset": "0x8000" },
-              { "path": "boot_app0.bin", "offset": "0xe000" },
-              { "path": "firmware.bin", "offset": "0x10000" }
-            ]
-          }
-          MANIFEST
-          cd ratcom-firmware && zip -r ../ratcom-firmware.zip . && cd ..
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ratcom-cardputer-adv-firmware
+          path: dist/*
 
   release:
-    needs: build
+    needs: package
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -72,45 +50,17 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install PlatformIO
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install Python tools
         run: pip install platformio esptool
 
-      - name: Build firmware
-        run: pio run -e ratcom_915
+      - name: Prepare RNode Arduino dependencies
+        run: make -C vendor/rnode_firmware prep-cardputer_adv
 
-      - name: Merge single .bin for M5Burner
-        run: |
-          esptool.py --chip esp32s3 merge-bin \
-            --flash-mode dio --flash-size 8MB \
-            -o ratcom-merged.bin \
-            0x0000 .pio/build/ratcom_915/bootloader.bin \
-            0x8000 .pio/build/ratcom_915/partitions.bin \
-            0xe000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
-            0x10000 .pio/build/ratcom_915/firmware.bin
-
-      - name: Package firmware ZIP
-        run: |
-          mkdir -p ratcom-firmware
-          cp .pio/build/ratcom_915/bootloader.bin ratcom-firmware/
-          cp .pio/build/ratcom_915/partitions.bin ratcom-firmware/
-          cp ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin ratcom-firmware/
-          cp .pio/build/ratcom_915/firmware.bin ratcom-firmware/
-          cp ratcom-merged.bin ratcom-firmware/
-          cat > ratcom-firmware/manifest.json << 'MANIFEST'
-          {
-            "chipFamily": "ESP32-S3",
-            "flashSize": "8MB",
-            "flashMode": "dio",
-            "flashFreq": "80m",
-            "parts": [
-              { "path": "bootloader.bin", "offset": "0x0000" },
-              { "path": "partitions.bin", "offset": "0x8000" },
-              { "path": "boot_app0.bin", "offset": "0xe000" },
-              { "path": "firmware.bin", "offset": "0x10000" }
-            ]
-          }
-          MANIFEST
-          cd ratcom-firmware && zip -r ../ratcom-firmware.zip . && cd ..
+      - name: Build release package
+        run: make package
 
       - name: Create Release
         env:
@@ -121,8 +71,17 @@ jobs:
             release_args+=(--prerelease)
           fi
 
+          artifacts=(
+            dist/ratcom-cardputer-adv-full.bin
+            dist/ratcom-cardputer-adv-full.zip
+            dist/ratcom-cardputer-adv-ratcom-only.bin
+            dist/ratcom-cardputer-adv-ratcom-only.zip
+            dist/ratcom-cardputer-adv-rnode-only.bin
+            dist/ratcom-cardputer-adv-rnode-only.zip
+          )
+
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" ratcom-firmware.zip ratcom-merged.bin --clobber
+            gh release upload "$GITHUB_REF_NAME" "${artifacts[@]}" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" ratcom-firmware.zip ratcom-merged.bin "${release_args[@]}"
+            gh release create "$GITHUB_REF_NAME" "${artifacts[@]}" "${release_args[@]}"
           fi

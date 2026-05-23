@@ -1,0 +1,6 @@
+vendor/rnode_firmware/** linguist-vendored
+*.bin binary
+*.pdf binary
+*.stl binary
+*.webp binary
+*.woff2 binary

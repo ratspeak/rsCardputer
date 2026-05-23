@@ -1,0 +1,8 @@
+# Name,    Type, SubType, Offset,   Size,     Flags
+nvs,       data, nvs,     0x9000,   0x5000,
+otadata,   data, ota,     0xe000,   0x2000,
+launcher,  app,  ota_0,   0x10000,  0x100000,
+ratcom,    app,  ota_1,   0x110000, 0x260000,
+rnode,     app,  ota_2,   0x370000, 0x260000,
+littlefs,  data, spiffs,  0x5D0000, 0x220000,
+coredump,  data, coredump,0x7F0000, 0x10000,
