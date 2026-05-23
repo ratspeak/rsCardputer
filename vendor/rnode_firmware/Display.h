@@ -237,6 +237,8 @@ uint8_t disp_page = START_PAGE;
   int cp_waterfall_head = 0;
   uint8_t cp_charge_tick = 0;
   uint32_t cp_pairing_tip_until = 0;
+  uint32_t cp_ble_notice_until = 0;
+  bool cp_ble_notice_enabled = false;
 #endif
 
 static const uint8_t one_counts[256] = {
@@ -1623,6 +1625,30 @@ void cp_draw_pairing_tip_overlay() {
   m5canvas.setFont(nullptr);
 }
 
+bool cp_ble_notice_active() {
+  return (int32_t)(cp_ble_notice_until - millis()) > 0;
+}
+
+void cp_draw_ble_notice_overlay() {
+  if (!cp_ble_notice_active()) return;
+
+  int w = 132;
+  int h = 34;
+  int x = (DISP_W - w) / 2;
+  int y = DISP_H - h - 14;
+
+  m5canvas.fillRoundRect(x + 2, y + 2, w, h, 5, SSD1306_BLACK);
+  m5canvas.fillRoundRect(x, y, w, h, 5, CLR_BG_PANEL);
+  m5canvas.drawRoundRect(x, y, w, h, 5, cp_ble_notice_enabled ? CLR_BT_ON : CLR_TEXT_DIM);
+
+  m5canvas.setFont(&fonts::Font2);
+  m5canvas.setTextSize(1);
+  m5canvas.setTextColor(CLR_TEXT_PRIMARY);
+  m5canvas.setCursor(x + 18, y + 10);
+  m5canvas.print(cp_ble_notice_enabled ? "BLE Enabled" : "BLE Disabled");
+  m5canvas.setFont(nullptr);
+}
+
 void cp_draw_fw_update_screen() {
   m5canvas.fillSprite(SSD1306_BLACK);
 
@@ -1715,6 +1741,7 @@ void cp_render_frame() {
   }
 
   cp_draw_pairing_tip_overlay();
+  cp_draw_ble_notice_overlay();
 }
 #endif
 
@@ -1861,6 +1888,13 @@ void display_unblank() {
 #if BOARD_MODEL == BOARD_CARDPUTER_ADV
 void cardputer_show_pairing_tip() {
   cp_pairing_tip_until = millis() + 3500;
+  display_unblank();
+  last_disp_update = 0;
+}
+
+void cardputer_show_ble_notice(bool enabled) {
+  cp_ble_notice_enabled = enabled;
+  cp_ble_notice_until = millis() + 2200;
   display_unblank();
   last_disp_update = 0;
 }

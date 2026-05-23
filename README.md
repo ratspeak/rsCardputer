@@ -101,8 +101,9 @@ On first boot, Standalone mode asks for timezone - this is so the GPS-received t
 RNode mode behaves like an RNode radio for any Reticulum client.
 
 - USB CDC serial carries the normal RNode KISS protocol.
-- BLE is enabled for phone/client pairing.
+- BLE is enabled by default for phone/client reconnection.
 - Hold `p` or `OK` for three seconds to enter BLE pairing mode.
+- Hold `b` for three seconds to toggle BLE on or off.
 - Pairing mode times out after 30 seconds if no client connects.
 - The radio stays idle until the host client connects.
 

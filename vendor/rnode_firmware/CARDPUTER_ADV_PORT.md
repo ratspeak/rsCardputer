@@ -64,9 +64,10 @@ in host-controlled mode and leaves the SX1262 idle until USB or BLE KISS starts
 the radio.
 
 USB CDC serial is enabled for the ESP32-S3 build and carries the normal RNode
-KISS protocol. BLE is compiled in; holding `p` or Enter/OK for three seconds
-enters the pairing flow used by other RNode boards, and pairing mode times out
-after 30 seconds if no client connects.
+KISS protocol. BLE is enabled by default; holding `p` or Enter/OK for three
+seconds enters the pairing flow used by other RNode boards, holding `b` for
+three seconds toggles BLE on or off, and pairing mode times out after 30 seconds
+if no client connects.
 
 The Cardputer Adv radio path follows Ratcom's hardened Cap LoRa-1262 handling:
 LoRa uses a dedicated ESP32-S3 FSPI bus, the PI4IOE5V6408 RF antenna switch is

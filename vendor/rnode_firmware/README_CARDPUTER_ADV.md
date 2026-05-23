@@ -76,8 +76,9 @@ until a USB or BLE host sends the normal RNode radio-on command.
 
 - USB CDC serial is enabled by the Cardputer Adv build flags and carries the
   normal RNode KISS protocol.
-- BLE support is compiled in. Hold `p` or Enter/OK for three seconds to enter
-  pairing mode. Pairing mode times out after 30 seconds if no client connects.
+- BLE is enabled by default. Hold `p` or Enter/OK for three seconds to enter
+  pairing mode, or hold `b` for three seconds to toggle BLE on or off. Pairing
+  mode times out after 30 seconds if no client connects.
 - The display's LoRa icon is dim while the radio is idle. The waterfall only
   updates after host software starts the radio.
 

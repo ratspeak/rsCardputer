@@ -1846,6 +1846,24 @@ void sleep_now() {
   #endif
 }
 
+#if BOARD_MODEL == BOARD_CARDPUTER_ADV
+void cardputer_ble_toggle_event() {
+  #if HAS_BLUETOOTH || HAS_BLE
+    bool enable_ble = (bt_state == BT_STATE_OFF);
+    if (enable_ble) {
+      bt_start();
+      bt_conf_save(true);
+    } else {
+      bt_stop();
+      bt_conf_save(false);
+    }
+    #if HAS_DISPLAY
+      cardputer_show_ble_notice(enable_ble);
+    #endif
+  #endif
+}
+#endif
+
 void button_event(uint8_t event, unsigned long duration) {
   #if MCU_VARIANT == MCU_ESP32 || MCU_VARIANT == MCU_NRF52
     if (display_blanked) {

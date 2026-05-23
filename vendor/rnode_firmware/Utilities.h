@@ -1897,6 +1897,7 @@ bool eeprom_have_conf() {
     eeprom_update(eeprom_addr(ADDR_CONF_SF), CARDPUTER_ADV_DEFAULT_SF);
     eeprom_update(eeprom_addr(ADDR_CONF_CR), CARDPUTER_ADV_DEFAULT_CR);
     eeprom_update(eeprom_addr(ADDR_CONF_TXP), CARDPUTER_ADV_DEFAULT_TXP);
+    eeprom_update(eeprom_addr(ADDR_CONF_BT), BT_ENABLE_BYTE);
     cardputer_adv_eeprom_write_u32(ADDR_CONF_BW, CARDPUTER_ADV_DEFAULT_BW);
     cardputer_adv_eeprom_write_u32(ADDR_CONF_FREQ, CARDPUTER_ADV_DEFAULT_FREQ);
     eeprom_update(eeprom_addr(ADDR_CONF_OK), CONF_OK_BYTE);

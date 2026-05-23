@@ -49,10 +49,16 @@
     bool cardputer_p_down = false;
     bool cardputer_p_pairing_sent = false;
     unsigned long cardputer_p_down_last = 0;
+    bool cardputer_b_down = false;
+    bool cardputer_b_toggle_sent = false;
+    unsigned long cardputer_b_down_last = 0;
   #endif
 
   // Forward declaration
   void button_event(uint8_t event, unsigned long duration);
+  #if BOARD_MODEL == BOARD_CARDPUTER_ADV
+    void cardputer_ble_toggle_event();
+  #endif
 
   #if BOARD_MODEL == BOARD_CARDPUTER_ADV && HAS_DISPLAY
     void cardputer_show_pairing_tip();
@@ -107,11 +113,13 @@
       bool keyboard_pressed = M5Cardputer.Keyboard.isPressed() > 0;
       bool display_was_blanked = display_blanked;
       bool p_pressed = false;
+      bool b_pressed = false;
 
       for (auto key : status.word) {
         if (key == 'p' || key == 'P') {
           p_pressed = true;
-          break;
+        } else if (key == 'b' || key == 'B') {
+          b_pressed = true;
         }
       }
 
@@ -147,7 +155,21 @@
         cardputer_p_pairing_sent = false;
       }
 
-      if (keyboard_changed && keyboard_pressed && !display_was_blanked && !status.enter && !p_pressed) {
+      if (b_pressed) {
+        if (!cardputer_b_down) {
+          cardputer_b_down = true;
+          cardputer_b_toggle_sent = false;
+          cardputer_b_down_last = millis();
+        } else if (!cardputer_b_toggle_sent && millis() - cardputer_b_down_last >= CARDPUTER_PAIR_HOLD_MS) {
+          cardputer_ble_toggle_event();
+          cardputer_b_toggle_sent = true;
+        }
+      } else {
+        cardputer_b_down = false;
+        cardputer_b_toggle_sent = false;
+      }
+
+      if (keyboard_changed && keyboard_pressed && !display_was_blanked && !status.enter && !p_pressed && !b_pressed) {
         cardputer_show_pairing_tip();
       }
     #endif
