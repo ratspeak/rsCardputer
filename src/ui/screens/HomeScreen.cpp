@@ -60,6 +60,8 @@ void HomeScreen::render(M5Canvas& canvas) {
     const int pad = 8;
     const int cardX = 3;
     const int cardW = Theme::SCREEN_W - 6;
+    const int headlineY = 5;
+    const int detailY = 23;
 
     int cardY = y;
     int cardH = 35;
@@ -71,15 +73,15 @@ void HomeScreen::render(M5Canvas& canvas) {
     canvas.setTextColor(Theme::TEXT_PRIMARY);
     if (_userConfig && !_userConfig->settings().displayName.isEmpty()) {
         drawFitted(canvas, _userConfig->settings().displayName.c_str(),
-                   cardX + pad, cardY + 2, cardW - pad * 2);
+                   cardX + pad, cardY + headlineY, cardW - pad * 2);
     } else {
         canvas.setTextColor(Theme::MUTED);
-        canvas.drawString("(no name set)", cardX + pad, cardY + 2);
+        canvas.drawString("(no name set)", cardX + pad, cardY + headlineY);
     }
 
     Theme::useSmallFont(canvas);
     canvas.setTextColor(Theme::SECONDARY);
-    canvas.setCursor(cardX + pad, cardY + 22);
+    canvas.setCursor(cardX + pad, cardY + detailY);
     canvas.print("LXMF ");
     canvas.setTextColor(Theme::ACCENT);
     if (_rns) {
@@ -103,18 +105,18 @@ void HomeScreen::render(M5Canvas& canvas) {
                 preset,
                 _radio->getSpreadingFactor(),
                 (unsigned long)(_radio->getSignalBandwidth() / 1000));
-            drawFitted(canvas, headline, cardX + pad, cardY + 2, cardW - pad * 2);
+            drawFitted(canvas, headline, cardX + pad, cardY + headlineY, cardW - pad * 2);
         }
     } else {
         Theme::useUiFont(canvas);
         canvas.setTextColor(Theme::MUTED);
-        canvas.drawString("LoRa Offline", cardX + pad, cardY + 2);
+        canvas.drawString("LoRa Offline", cardX + pad, cardY + headlineY);
     }
 
     if (_radio && _radio->isRadioOnline()) {
         Theme::useSmallFont(canvas);
         canvas.setTextColor(Theme::MUTED);
-        canvas.setCursor(cardX + pad, cardY + 22);
+        canvas.setCursor(cardX + pad, cardY + detailY);
         canvas.printf("%.1f MHz  TX:%d dBm  CR:%d  P:%d L:%d",
             _radio->getFrequency() / 1000000.0,
             _radio->getTxPower(), _radio->getCodingRate4(),
@@ -124,17 +126,12 @@ void HomeScreen::render(M5Canvas& canvas) {
 
     y = cardY + cardH + 4;
     {
-        const char* label = "Announce";
-        Theme::useUiFont(canvas);
-        int btnW = canvas.textWidth(label) + 22;
-        int btnX = (Theme::SCREEN_W - btnW) / 2;
-        int btnH = 18;
-        int btnY = std::min(y, Theme::CONTENT_Y + Theme::CONTENT_H - btnH - 2);
-        canvas.fillRoundRect(btnX, btnY, btnW, btnH, 4, Theme::SELECTION_BG);
-        canvas.drawRoundRect(btnX, btnY, btnW, btnH, 4, Theme::PRIMARY);
-        canvas.setTextColor(Theme::TEXT_PRIMARY);
-        canvas.setCursor(btnX + 11, btnY + 1);
-        canvas.print(label);
+        const char* tip = "Tip: Press OK to announce";
+        Theme::useSmallFont(canvas);
+        int tipX = (Theme::SCREEN_W - canvas.textWidth(tip)) / 2;
+        int tipY = std::min(y + 3, Theme::CONTENT_Y + Theme::CONTENT_H - Theme::CHAR_H - 3);
+        canvas.setTextColor(Theme::TEXT_SECONDARY);
+        canvas.drawString(tip, tipX, tipY);
     }
 
     // Announce flash toast
