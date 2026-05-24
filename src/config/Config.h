@@ -4,10 +4,10 @@
 // rsCardputer Standalone — Compile-Time Configuration
 // =============================================================================
 
-#define RSCARDPUTER_VERSION_MAJOR  1
-#define RSCARDPUTER_VERSION_MINOR  9
-#define RSCARDPUTER_VERSION_PATCH  9
-#define RSCARDPUTER_VERSION_STRING "1.9.9"
+#define RSCARDPUTER_VERSION_MAJOR  2
+#define RSCARDPUTER_VERSION_MINOR  0
+#define RSCARDPUTER_VERSION_PATCH  0
+#define RSCARDPUTER_VERSION_STRING "2.0.0"
 
 // --- Feature Flags ---
 #define HAS_DISPLAY     true
