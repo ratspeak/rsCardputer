@@ -4,6 +4,7 @@
 #include "storage/FlashStore.h"
 #include "hal/SharedSPIBus.h"
 #include "transport/LoRaInterface.h"
+#include "perf/PerfTrace.h"
 #include <ArduinoJson.h>
 // LittleFS access through FlashStore (mutex-protected)
 
@@ -608,10 +609,13 @@ std::string AnnounceManager::lookupName(const std::string& hexHash) const {
 }
 
 void AnnounceManager::saveNameCache() {
+    unsigned long traceStart = PerfTrace::nowMs();
     // Skip save when heap is low — the JsonDocument + String allocation is expensive
     if (ESP.getFreeHeap() < 20000) {
         Serial.println("[ANNOUNCE] Name cache save deferred (low heap)");
         _nameCacheDirty = true;  // Retry later
+        PerfTrace::log("announce", "save_name_cache", "deferred", "/config/names.json",
+                       0, (int)_nameCache.size(), false, PerfTrace::elapsedMs(traceStart));
         return;
     }
     JsonDocument doc;
@@ -620,14 +624,22 @@ void AnnounceManager::saveNameCache() {
     }
     String json;
     serializeJson(doc, json);
+    bool sdReady = _sd && _sd->isReady();
+    bool flashReady = _flash && _flash->isReady();
+    bool sdOk = false;
+    bool flashOk = false;
     if (_sd && _sd->isReady()) {
         _sd->ensureDir(SD_PATH_CONFIG_DIR);
-        _sd->writeString("/ratcom/config/names.json", json);
+        sdOk = _sd->writeString("/ratcom/config/names.json", json);
     }
     if (_flash && _flash->isReady()) {
         _flash->ensureDir("/config");
-        _flash->writeString("/config/names.json", json);
+        flashOk = _flash->writeString("/config/names.json", json);
     }
+    const char* backend = sdReady && flashReady ? "both" : (sdReady ? "sd" : (flashReady ? "flash" : "none"));
+    bool ok = (sdReady && sdOk) || (flashReady && flashOk);
+    PerfTrace::log("announce", "save_name_cache", backend, "/config/names.json",
+                   json.length(), (int)_nameCache.size(), ok, PerfTrace::elapsedMs(traceStart));
     Serial.printf("[ANNOUNCE] Name cache saved (%d entries)\n", (int)_nameCache.size());
 }
 

@@ -1,4 +1,5 @@
 #include "FlashStore.h"
+#include "perf/PerfTrace.h"
 
 // Global LittleFS mutex — prevents cross-task corruption
 SemaphoreHandle_t FlashStore::_mutex = nullptr;
@@ -222,12 +223,19 @@ File FlashStore::openFile(const char* path, const char* mode) {
 }
 
 bool FlashStore::writeAtomic(const char* path, const uint8_t* data, size_t len) {
-    if (!_ready) return false;
+    unsigned long traceStart = PerfTrace::nowMs();
+    auto finishTrace = [&](bool ok) {
+        PerfTrace::log("flash", "write_atomic", "flash", path, len, -1, ok,
+                       PerfTrace::elapsedMs(traceStart));
+        return ok;
+    };
+
+    if (!_ready) return finishTrace(false);
     // Refuse writes when heap is critically low — prevents OOM-induced LittleFS unmount
     if (ESP.getFreeHeap() < 4096) {
         Serial.printf("[FLASH] Write refused (heap=%lu) — OOM protection: %s\n",
                       (unsigned long)ESP.getFreeHeap(), path);
-        return false;
+        return finishTrace(false);
     }
     FSLock lock(_mutex);
 
@@ -236,12 +244,12 @@ bool FlashStore::writeAtomic(const char* path, const uint8_t* data, size_t len) 
     String bakPath = String(path) + ".bak";
 
     File f = LittleFS.open(tmpPath.c_str(), "w");
-    if (!f) return false;
+    if (!f) return finishTrace(false);
     size_t written = f.write(data, len);
     f.close();
     if (written != len) {
         LittleFS.remove(tmpPath.c_str());
-        return false;
+        return finishTrace(false);
     }
 
     // Step 2: Verify .tmp by reading back
@@ -249,7 +257,7 @@ bool FlashStore::writeAtomic(const char* path, const uint8_t* data, size_t len) 
     if (!verify || verify.size() != len) {
         if (verify) verify.close();
         LittleFS.remove(tmpPath.c_str());
-        return false;
+        return finishTrace(false);
     }
     verify.close();
 
@@ -259,7 +267,7 @@ bool FlashStore::writeAtomic(const char* path, const uint8_t* data, size_t len) 
         if (!LittleFS.rename(path, bakPath.c_str())) {
             LittleFS.remove(tmpPath.c_str());
             Serial.printf("[FLASH] writeAtomic: backup rename failed for %s\n", path);
-            return false;
+            return finishTrace(false);
         }
     }
 
@@ -270,13 +278,13 @@ bool FlashStore::writeAtomic(const char* path, const uint8_t* data, size_t len) 
             LittleFS.rename(bakPath.c_str(), path);
         }
         LittleFS.remove(tmpPath.c_str());
-        return false;
+        return finishTrace(false);
     }
 
     // Step 5: Remove .bak (no longer needed)
     LittleFS.remove(bakPath.c_str());
 
-    return true;
+    return finishTrace(true);
 }
 
 bool FlashStore::readFile(const char* path, uint8_t* buffer, size_t maxLen, size_t& bytesRead) {
@@ -303,19 +311,26 @@ bool FlashStore::writeString(const char* path, const String& data) {
 }
 
 bool FlashStore::writeDirect(const char* path, const uint8_t* data, size_t len) {
-    if (!_ready) return false;
+    unsigned long traceStart = PerfTrace::nowMs();
+    auto finishTrace = [&](bool ok) {
+        PerfTrace::log("flash", "write_direct", "flash", path, len, -1, ok,
+                       PerfTrace::elapsedMs(traceStart));
+        return ok;
+    };
+
+    if (!_ready) return finishTrace(false);
     if (ESP.getFreeHeap() < 4096) {
         Serial.printf("[FLASH] Write refused (heap=%lu) — OOM protection: %s\n",
                       (unsigned long)ESP.getFreeHeap(), path);
-        return false;
+        return finishTrace(false);
     }
     FSLock lock(_mutex);
     File f = LittleFS.open(path, "w");
-    if (!f) return false;
+    if (!f) return finishTrace(false);
     size_t written = f.write(data, len);
     f.flush();
     f.close();
-    return written == len;
+    return finishTrace(written == len);
 }
 
 String FlashStore::readString(const char* path) {

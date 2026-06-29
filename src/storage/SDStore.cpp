@@ -1,6 +1,7 @@
 #include "SDStore.h"
 #include "config/Config.h"
 #include "hal/SharedSPIBus.h"
+#include "perf/PerfTrace.h"
 
 bool SDStore::begin(SPIClass* spi, int csPin) {
     if (!spi) return false;
@@ -125,9 +126,16 @@ bool SDStore::readFile(const char* path, uint8_t* buffer, size_t maxLen, size_t&
 }
 
 bool SDStore::writeAtomic(const char* path, const uint8_t* data, size_t len) {
-    if (!_ready) return false;
+    unsigned long traceStart = PerfTrace::nowMs();
+    auto finishTrace = [&](bool ok) {
+        PerfTrace::log("sd", "write_atomic", "sd", path, len, -1, ok,
+                       PerfTrace::elapsedMs(traceStart));
+        return ok;
+    };
+
+    if (!_ready) return finishTrace(false);
     SharedSPILock lock;
-    if (!lock.locked()) return false;
+    if (!lock.locked()) return finishTrace(false);
 
     String tmpPath = String(path) + ".tmp";
     String bakPath = String(path) + ".bak";
@@ -136,13 +144,13 @@ bool SDStore::writeAtomic(const char* path, const uint8_t* data, size_t len) {
     File f = SD.open(tmpPath.c_str(), FILE_WRITE);
     if (!f) {
         Serial.printf("[SD] Failed to open %s for write\n", tmpPath.c_str());
-        return false;
+        return finishTrace(false);
     }
     size_t written = f.write(data, len);
     f.close();
     if (written != len) {
         SD.remove(tmpPath.c_str());
-        return false;
+        return finishTrace(false);
     }
 
     // Step 2: Verify .tmp by reading back size
@@ -150,7 +158,7 @@ bool SDStore::writeAtomic(const char* path, const uint8_t* data, size_t len) {
     if (!verify || verify.size() != len) {
         if (verify) verify.close();
         SD.remove(tmpPath.c_str());
-        return false;
+        return finishTrace(false);
     }
     verify.close();
 
@@ -160,7 +168,7 @@ bool SDStore::writeAtomic(const char* path, const uint8_t* data, size_t len) {
         if (!SD.rename(path, bakPath.c_str())) {
             SD.remove(tmpPath.c_str());
             Serial.printf("[SD] writeAtomic: backup rename failed for %s\n", path);
-            return false;
+            return finishTrace(false);
         }
     }
 
@@ -173,12 +181,12 @@ bool SDStore::writeAtomic(const char* path, const uint8_t* data, size_t len) {
             SD.rename(bakPath.c_str(), path);
         }
         SD.remove(tmpPath.c_str());
-        return false;
+        return finishTrace(false);
     }
 
     SD.remove(bakPath.c_str());
 
-    return true;
+    return finishTrace(true);
 }
 
 bool SDStore::writeString(const char* path, const String& data) {
@@ -186,15 +194,22 @@ bool SDStore::writeString(const char* path, const String& data) {
 }
 
 bool SDStore::writeDirect(const char* path, const uint8_t* data, size_t len) {
-    if (!_ready) return false;
+    unsigned long traceStart = PerfTrace::nowMs();
+    auto finishTrace = [&](bool ok) {
+        PerfTrace::log("sd", "write_direct", "sd", path, len, -1, ok,
+                       PerfTrace::elapsedMs(traceStart));
+        return ok;
+    };
+
+    if (!_ready) return finishTrace(false);
     SharedSPILock lock;
-    if (!lock.locked()) return false;
+    if (!lock.locked()) return finishTrace(false);
     File f = SD.open(path, FILE_WRITE);
-    if (!f) return false;
+    if (!f) return finishTrace(false);
     size_t written = f.write(data, len);
     f.flush();
     f.close();
-    return written == len;
+    return finishTrace(written == len);
 }
 
 String SDStore::readString(const char* path) {

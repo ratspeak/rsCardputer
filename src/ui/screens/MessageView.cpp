@@ -1,6 +1,7 @@
 #include "MessageView.h"
 #include "ui/Theme.h"
 #include "reticulum/AnnounceManager.h"
+#include "perf/PerfTrace.h"
 #include <algorithm>
 #include <time.h>
 
@@ -35,6 +36,7 @@ void drawFittedHeader(M5Canvas& canvas, const std::string& text, int x, int y, i
 }
 
 void MessageView::onEnter() {
+    unsigned long traceStart = PerfTrace::nowMs();
     _input.setActive(true);
     _input.clear();
     _input.setMaxLength(400);
@@ -42,10 +44,18 @@ void MessageView::onEnter() {
         sendCurrentInput();
     });
     refreshMessages();
+    PerfTrace::log("ui", "message_open", "message_view", _peerHex.c_str(), 0,
+                   (int)_messages.size(), _lxmf && !_peerHex.empty(),
+                   PerfTrace::elapsedMs(traceStart));
 }
 
 void MessageView::refreshMessages() {
-    if (!_lxmf || _peerHex.empty()) return;
+    unsigned long traceStart = PerfTrace::nowMs();
+    if (!_lxmf || _peerHex.empty()) {
+        PerfTrace::log("ui", "message_refresh", "message_view", _peerHex.c_str(), 0,
+                       (int)_messages.size(), false, PerfTrace::elapsedMs(traceStart));
+        return;
+    }
 
     // Load last 20 messages (paginated)
     _messages = _lxmf->getMessages(_peerHex);
@@ -128,6 +138,8 @@ void MessageView::refreshMessages() {
 
     _lastRefresh = millis();
     _needsRefresh = false;
+    PerfTrace::log("ui", "message_refresh", "message_view", _peerHex.c_str(), 0,
+                   (int)_messages.size(), true, PerfTrace::elapsedMs(traceStart));
 }
 
 void MessageView::render(M5Canvas& canvas) {
@@ -325,15 +337,26 @@ void MessageView::notifyStatusChange(const std::string& peerHex, double timestam
 }
 
 void MessageView::sendCurrentInput() {
-    if (!_lxmf || _peerHex.empty()) return;
+    unsigned long traceStart = PerfTrace::nowMs();
+    if (!_lxmf || _peerHex.empty()) {
+        PerfTrace::log("ui", "message_send", "message_view", _peerHex.c_str(), 0,
+                       (int)_chatLines.size(), false, PerfTrace::elapsedMs(traceStart));
+        return;
+    }
 
     std::string text = _input.getText();
-    if (text.empty()) return;
+    if (text.empty()) {
+        PerfTrace::log("ui", "message_send", "message_view", _peerHex.c_str(), 0,
+                       (int)_chatLines.size(), false, PerfTrace::elapsedMs(traceStart));
+        return;
+    }
 
     RNS::Bytes destHash;
     destHash.assignHex(_peerHex.c_str());
 
     if (!_lxmf->sendMessage(destHash, text)) {
+        PerfTrace::log("ui", "message_send", "message_view", _peerHex.c_str(), text.size(),
+                       (int)_chatLines.size(), false, PerfTrace::elapsedMs(traceStart));
         return;
     }
     _input.clear();
@@ -374,4 +397,6 @@ void MessageView::sendCurrentInput() {
     int visibleLines = visibleChatLines();
     _scrollOffset = std::max(0, totalWrappedLines - visibleLines);
     _hasNewBelow = false;
+    PerfTrace::log("ui", "message_send", "message_view", _peerHex.c_str(), text.size(),
+                   (int)_chatLines.size(), true, PerfTrace::elapsedMs(traceStart));
 }

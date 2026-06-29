@@ -1,6 +1,7 @@
 #include "ReticulumManager.h"
 #include "config/Config.h"
 #include "storage/FlashStore.h"
+#include "perf/PerfTrace.h"
 #include <Log.h>
 #include <LittleFS.h>
 #include <Preferences.h>
@@ -64,6 +65,14 @@ size_t LittleFSFileSystem::write_file(const char* file_path, const RNS::Bytes& d
 }
 
 namespace {
+const char* persistCycleName(uint8_t cycle) {
+    switch (cycle) {
+        case 0: return "transport";
+        case 1: return "identity";
+    }
+    return "unknown";
+}
+
 bool ensureLittleFSDirLocked(const String& dir) {
     if (dir.length() == 0 || dir == "/") return true;
     if (LittleFS.exists(dir.c_str())) return true;
@@ -431,6 +440,7 @@ void ReticulumManager::persistTaskFunc(void* param) {
     for (;;) {
         if (xQueueReceive(self->_persistQueue, &cycle, portMAX_DELAY) == pdTRUE) {
             unsigned long start = millis();
+            bool ok = true;
             switch (cycle) {
                 case 0:
                     RNS::Transport::persist_data();
@@ -439,24 +449,38 @@ void ReticulumManager::persistTaskFunc(void* param) {
                     RNS::Identity::persist_data();
                     break;
                 // Cycle 2 removed — endpoint doesn't need SD transport backup
+                default:
+                    ok = false;
+                    break;
             }
             Serial.printf("[PERSIST] Cycle %d done (%lums, core %d)\n",
                           cycle, millis() - start, xPortGetCoreID());
+            PerfTrace::log("rns", "persist_task", persistCycleName(cycle), persistCycleName(cycle),
+                           0, self->_persistQueue ? (int)uxQueueMessagesWaiting(self->_persistQueue) : -1,
+                           ok, millis() - start);
         }
     }
 }
 
 void ReticulumManager::persistData() {
+    unsigned long traceStart = PerfTrace::nowMs();
+    uint8_t cycle = _persistCycle;
+    bool ok = true;
     if (_persistQueue) {
         // Queue the cycle for background execution — non-blocking
-        xQueueOverwrite(_persistQueue, &_persistCycle);
+        ok = (xQueueOverwrite(_persistQueue, &cycle) == pdPASS);
     } else {
         // Fallback: synchronous (before task is started)
-        switch (_persistCycle) {
+        switch (cycle) {
             case 0: RNS::Transport::persist_data(); break;
             case 1: RNS::Identity::persist_data(); break;
+            default: ok = false; break;
         }
     }
+    PerfTrace::log("rns", _persistQueue ? "persist_queue" : "persist_sync",
+                   persistCycleName(cycle), persistCycleName(cycle), 0,
+                   _persistQueue ? (int)uxQueueMessagesWaiting(_persistQueue) : -1,
+                   ok, PerfTrace::elapsedMs(traceStart));
     _persistCycle = (_persistCycle + 1) % 2;  // Only 2 cycles now (transport + identity)
 }
 

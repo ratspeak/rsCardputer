@@ -1,7 +1,24 @@
 #include "WriteQueue.h"
 #include "storage/SDStore.h"
 #include "storage/FlashStore.h"
+#include "perf/PerfTrace.h"
 #include <Preferences.h>
+
+namespace {
+const char* backendName(WriteBackend backend) {
+    switch (backend) {
+        case WriteBackend::SD_ONLY: return "sd";
+        case WriteBackend::FLASH_ONLY: return "flash";
+        case WriteBackend::BOTH: return "both";
+    }
+    return "unknown";
+}
+
+const char* primaryPath(const char* sdPath, const char* flashPath) {
+    if (sdPath && sdPath[0] != '\0') return sdPath;
+    return flashPath;
+}
+}  // namespace
 
 bool WriteQueue::begin(SDStore* sd, FlashStore* flash) {
     _sd = sd;
@@ -25,10 +42,22 @@ bool WriteQueue::begin(SDStore* sd, FlashStore* flash) {
 }
 
 bool WriteQueue::enqueue(const char* sdPath, const char* flashPath, const String& data, WriteBackend backend) {
-    if (!_queue) return false;
+    unsigned long traceStart = PerfTrace::nowMs();
+    const size_t bytes = data.length();
+    const char* tracePath = primaryPath(sdPath, flashPath);
+
+    if (!_queue) {
+        PerfTrace::log("writeq", "enqueue", backendName(backend), tracePath, bytes,
+                       _pending, false, PerfTrace::elapsedMs(traceStart));
+        return false;
+    }
 
     WriteJob* job = new (std::nothrow) WriteJob();
-    if (!job) return false;
+    if (!job) {
+        PerfTrace::log("writeq", "enqueue", backendName(backend), tracePath, bytes,
+                       _pending, false, PerfTrace::elapsedMs(traceStart));
+        return false;
+    }
 
     job->sdPath[0] = '\0';
     job->flashPath[0] = '\0';
@@ -46,10 +75,14 @@ bool WriteQueue::enqueue(const char* sdPath, const char* flashPath, const String
     if (xQueueSend(_queue, &job, 0) != pdTRUE) {
         delete job;
         Serial.println("[WRITEQ] Queue full, dropping write");
+        PerfTrace::log("writeq", "enqueue", backendName(backend), tracePath, bytes,
+                       _pending, false, PerfTrace::elapsedMs(traceStart));
         return false;
     }
 
     _pending++;
+    PerfTrace::log("writeq", "enqueue", backendName(backend), tracePath, bytes,
+                   _pending, true, PerfTrace::elapsedMs(traceStart));
     return true;
 }
 
@@ -98,44 +131,68 @@ void WriteQueue::taskFunc(void* param) {
 }
 
 void WriteQueue::processJob(const WriteJob& job) {
+    unsigned long jobStart = PerfTrace::nowMs();
+    const size_t bytes = job.data.length();
+    bool ok = true;
+
     // SD write
-    if ((job.backend == WriteBackend::SD_ONLY || job.backend == WriteBackend::BOTH) &&
-        _sd && _sd->isReady() && job.sdPath[0] != '\0') {
+    if (job.backend == WriteBackend::SD_ONLY || job.backend == WriteBackend::BOTH) {
+        unsigned long backendStart = PerfTrace::nowMs();
+        bool backendOk = false;
+        if (_sd && _sd->isReady() && job.sdPath[0] != '\0') {
 
-        // Ensure parent directory exists on SD
-        String sdDir = String(job.sdPath);
-        int lastSlash = sdDir.lastIndexOf('/');
-        if (lastSlash > 0) {
-            sdDir = sdDir.substring(0, lastSlash);
-            _sd->ensureDir(sdDir.c_str());
+            // Ensure parent directory exists on SD
+            String sdDir = String(job.sdPath);
+            int lastSlash = sdDir.lastIndexOf('/');
+            if (lastSlash > 0) {
+                sdDir = sdDir.substring(0, lastSlash);
+                _sd->ensureDir(sdDir.c_str());
+            }
+
+            backendOk = _sd->writeDirect(job.sdPath, (const uint8_t*)job.data.c_str(), job.data.length());
         }
-
-        bool ok = _sd->writeDirect(job.sdPath, (const uint8_t*)job.data.c_str(), job.data.length());
-        if (!ok) {
+        if (!backendOk) {
             Serial.printf("[WRITEQ] SD write FAILED: %s\n", job.sdPath);
+            ok = false;
         }
+        PerfTrace::log("writeq", "process", "sd", job.sdPath, bytes, _pending, backendOk,
+                       PerfTrace::elapsedMs(backendStart));
     }
 
     // Flash write
-    if ((job.backend == WriteBackend::FLASH_ONLY || job.backend == WriteBackend::BOTH) &&
-        _flash && _flash->isReady() && job.flashPath[0] != '\0') {
+    if (job.backend == WriteBackend::FLASH_ONLY || job.backend == WriteBackend::BOTH) {
+        unsigned long backendStart = PerfTrace::nowMs();
+        bool backendOk = false;
+        if (_flash && _flash->isReady() && job.flashPath[0] != '\0') {
 
-        // Ensure parent directory exists on flash
-        String flashDir = String(job.flashPath);
-        int lastSlash = flashDir.lastIndexOf('/');
-        if (lastSlash > 0) {
-            flashDir = flashDir.substring(0, lastSlash);
-            _flash->ensureDir(flashDir.c_str());
+            // Ensure parent directory exists on flash
+            String flashDir = String(job.flashPath);
+            int lastSlash = flashDir.lastIndexOf('/');
+            if (lastSlash > 0) {
+                flashDir = flashDir.substring(0, lastSlash);
+                _flash->ensureDir(flashDir.c_str());
+            }
+
+            backendOk = _flash->writeDirect(job.flashPath, (const uint8_t*)job.data.c_str(), job.data.length());
         }
-
-        bool ok = _flash->writeDirect(job.flashPath, (const uint8_t*)job.data.c_str(), job.data.length());
-        if (!ok) {
+        if (!backendOk) {
             Serial.printf("[WRITEQ] Flash write FAILED: %s\n", job.flashPath);
+            ok = false;
         }
+        PerfTrace::log("writeq", "process", "flash", job.flashPath, bytes, _pending, backendOk,
+                       PerfTrace::elapsedMs(backendStart));
     }
+
+    PerfTrace::log("writeq", "process_job", backendName(job.backend),
+                   primaryPath(job.sdPath, job.flashPath), bytes, _pending, ok,
+                   PerfTrace::elapsedMs(jobStart));
 }
 
 void WriteQueue::periodicMaintenance() {
+    unsigned long traceStart = PerfTrace::nowMs();
+    bool ok = true;
+    size_t bytes = 0;
+
     // Persist receive counter to NVS (batched, not per-message)
     if (_counterRef) {
         uint32_t current = _counterRef->load(std::memory_order_relaxed);
@@ -145,7 +202,13 @@ void WriteQueue::periodicMaintenance() {
                 prefs.putUInt("msgctr", current);
                 prefs.end();
                 _lastPersistedCounter = current;
+                bytes = sizeof(current);
+            } else {
+                ok = false;
             }
         }
     }
+
+    PerfTrace::log("writeq", "maintenance", "nvs", "ratcom/msgctr", bytes,
+                   _pending, ok, PerfTrace::elapsedMs(traceStart));
 }

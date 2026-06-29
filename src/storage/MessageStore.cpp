@@ -1,12 +1,14 @@
 #include "MessageStore.h"
 #include "config/Config.h"
 #include "hal/SharedSPIBus.h"
+#include "perf/PerfTrace.h"
 // All LittleFS access goes through FlashStore (mutex-protected)
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <algorithm>
 
 bool MessageStore::begin(FlashStore* flash, SDStore* sd) {
+    unsigned long traceStart = PerfTrace::nowMs();
     _flash = flash;
     _sd = sd;
     _flash->ensureDir(PATH_MESSAGES);
@@ -49,6 +51,9 @@ bool MessageStore::begin(FlashStore* flash, SDStore* sd) {
     Serial.printf("[MSGSTORE] %d conversations, %d total messages, limit=%d, counter=%lu\n",
                   (int)_conversations.size(), _totalMessageCount, messageLimit(),
                   (unsigned long)_nextReceiveCounter);
+    PerfTrace::log("msgstore", "begin", (_sd && _sd->isReady()) ? "sd+flash" : "flash",
+                   PATH_MESSAGES, 0, _writeQueue.drainCount(), true,
+                   PerfTrace::elapsedMs(traceStart));
     return true;
 }
 
@@ -400,11 +405,18 @@ void MessageStore::ensureConvDirs(const std::string& peerHex) {
 }
 
 bool MessageStore::saveMessage(LXMFMessage& msg) {
-    if (!_flash) return false;
+    unsigned long traceStart = PerfTrace::nowMs();
+    if (!_flash) {
+        PerfTrace::log("msgstore", "save_enqueue", "none", nullptr, 0,
+                       _writeQueue.drainCount(), false, PerfTrace::elapsedMs(traceStart));
+        return false;
+    }
 
     // Global capacity check — refuse new messages when full
     if (isFull()) {
         Serial.println("[MSGSTORE] Storage full — message rejected");
+        PerfTrace::log("msgstore", "save_enqueue", "none", nullptr, 0,
+                       _writeQueue.drainCount(), false, PerfTrace::elapsedMs(traceStart));
         return false;
     }
 
@@ -453,6 +465,9 @@ bool MessageStore::saveMessage(LXMFMessage& msg) {
     if (!enqueued) {
         _nextReceiveCounter--;
         Serial.printf("[MSGSTORE] Write queue rejected message for %s\n", peerHex.substr(0, 8).c_str());
+        PerfTrace::log("msgstore", "save_enqueue", (_sd && _sd->isReady()) ? "both" : "flash",
+                       flashPath.c_str(), json.length(), _writeQueue.drainCount(), false,
+                       PerfTrace::elapsedMs(traceStart));
         return false;
     }
 
@@ -481,10 +496,14 @@ bool MessageStore::saveMessage(LXMFMessage& msg) {
         }
     }
 
+    PerfTrace::log("msgstore", "save_enqueue", (_sd && _sd->isReady()) ? "both" : "flash",
+                   flashPath.c_str(), json.length(), _writeQueue.drainCount(), true,
+                   PerfTrace::elapsedMs(traceStart));
     return true;
 }
 
 std::vector<LXMFMessage> MessageStore::loadConversation(const std::string& peerHex, int limit, int offset) const {
+    unsigned long traceStart = PerfTrace::nowMs();
     std::vector<LXMFMessage> messages;
 
     std::vector<String> filenames;
@@ -538,7 +557,12 @@ std::vector<LXMFMessage> MessageStore::loadConversation(const std::string& peerH
     int total = filenames.size();
     int startIdx = std::max(0, total - limit - offset);
     int endIdx = std::max(0, total - offset);
-    if (startIdx >= endIdx) return messages;
+    if (startIdx >= endIdx) {
+        PerfTrace::log("msgstore", "load_conversation", useSD ? "sd" : "flash",
+                       sourceDir.c_str(), 0, (int)messages.size(), true,
+                       PerfTrace::elapsedMs(traceStart));
+        return messages;
+    }
 
     for (int i = startIdx; i < endIdx; i++) {
         String fullPath = sourceDir + "/" + filenames[i];
@@ -601,6 +625,9 @@ std::vector<LXMFMessage> MessageStore::loadConversation(const std::string& peerH
         }
     }
 
+    PerfTrace::log("msgstore", "load_conversation", useSD ? "sd" : "flash",
+                   sourceDir.c_str(), 0, (int)messages.size(), true,
+                   PerfTrace::elapsedMs(traceStart));
     return messages;
 }
 
@@ -737,6 +764,7 @@ bool MessageStore::deleteConversation(const std::string& peerHex) {
 }
 
 void MessageStore::markConversationRead(const std::string& peerHex) {
+    unsigned long traceStart = PerfTrace::nowMs();
     uint32_t counter = _nextReceiveCounter > 0 ? _nextReceiveCounter - 1 : 0;
     String counterStr = String(counter);
 
@@ -747,11 +775,15 @@ void MessageStore::markConversationRead(const std::string& peerHex) {
     String flashPath = conversationDir(peerHex) + "/.read_ctr";
 
     // Enqueue both writes — non-blocking
+    bool enqueued = false;
     if (_sd && _sd->isReady()) {
-        _writeQueue.enqueue(sdPath.c_str(), flashPath.c_str(), counterStr, WriteBackend::BOTH);
+        enqueued = _writeQueue.enqueue(sdPath.c_str(), flashPath.c_str(), counterStr, WriteBackend::BOTH);
     } else {
-        _writeQueue.enqueue(nullptr, flashPath.c_str(), counterStr, WriteBackend::FLASH_ONLY);
+        enqueued = _writeQueue.enqueue(nullptr, flashPath.c_str(), counterStr, WriteBackend::FLASH_ONLY);
     }
+    PerfTrace::log("msgstore", "mark_read_enqueue", (_sd && _sd->isReady()) ? "both" : "flash",
+                   flashPath.c_str(), counterStr.length(), _writeQueue.drainCount(), enqueued,
+                   PerfTrace::elapsedMs(traceStart));
 }
 
 bool MessageStore::updateMessageStatusByCounter(const std::string& peerHex, uint32_t counter, bool incoming, LXMFStatus newStatus) {

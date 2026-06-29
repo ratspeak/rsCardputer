@@ -1,4 +1,5 @@
 #include "UIManager.h"
+#include "perf/PerfTrace.h"
 
 void UIManager::begin() {
     // 8-bit palette mode: 240×135×1 = 32,400 bytes (vs 64,800 at 16-bit)
@@ -42,6 +43,10 @@ void UIManager::begin() {
 }
 
 void UIManager::setScreen(Screen* screen) {
+    unsigned long traceStart = PerfTrace::nowMs();
+    const char* fromTitle = _currentScreen ? _currentScreen->title() : "none";
+    const char* toTitle = screen ? screen->title() : "none";
+
     if (_currentScreen) {
         _currentScreen->onExit();
     }
@@ -50,6 +55,8 @@ void UIManager::setScreen(Screen* screen) {
         _currentScreen->onEnter();
     }
     markAllDirty();
+    PerfTrace::log("ui", "screen_transition", toTitle, fromTitle, 0, -1, true,
+                   PerfTrace::elapsedMs(traceStart));
 }
 
 void UIManager::render() {

@@ -6,7 +6,7 @@
 
 [![Status](https://img.shields.io/badge/status-beta-yellow.svg)](#install)
 [![Model](https://img.shields.io/badge/model-Cardputer%20Adv-success.svg)](https://docs.m5stack.com/en/core/Cardputer-Adv)
-[![Version](https://img.shields.io/badge/version-2.0.2-success.svg)](https://github.com/ratspeak/rsCardputer/releases)
+[![Version](https://img.shields.io/badge/version-2.0.3-success.svg)](https://github.com/ratspeak/rsCardputer/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 
 [Ratspeak](https://github.com/ratspeak/Ratspeak) |
