@@ -197,7 +197,15 @@ void SX1262::waitOnBusy() {
     unsigned long t = millis();
     if (_busy != -1) {
         while (digitalRead(_busy) == HIGH) {
-            if (millis() >= (t + 100)) break;
+            // CalibrateImage on a fresh (uncached) band can legitimately run
+            // longer than other opcodes. The old 100ms cap could give up
+            // while BUSY was still genuinely asserted — the chip ignores SPI
+            // while busy, so the SetRfFrequency write right after a band
+            // switch would land on a still-busy chip and get silently
+            // dropped, leaving the old frequency in effect. 1000ms is well
+            // beyond any documented SX126x opcode duration, so this only
+            // changes behavior in the case that was previously broken.
+            if (millis() >= (t + 1000)) break;
             yield();
         }
     }
@@ -242,8 +250,24 @@ bool SX1262::calibrate_image(uint32_t frequency) {
 
     if (_imageCalBand == band) return true;
 
-    standby();
+    // CalibrateImage must be issued from STDBY_RC per datasheet, same as
+    // Calibrate() above. standby() would enter STDBY_XOSC on this TCXO
+    // board, which leaves the image/PLL calibration for the new band
+    // invalid — symptom: after switching bands (e.g. Americas -> Europe),
+    // SetRfFrequency below appears to apply, but the chip stays locked on
+    // the previously-calibrated band's frequency until a later call skips
+    // this (now band-cached) step and re-issues a clean SetRfFrequency.
+    uint8_t mode_byte = MODE_STDBY_RC_6X;
+    executeOpcode(OP_STANDBY_6X, &mode_byte, 1);
     executeOpcode(OP_CALIBRATE_IMAGE_6X, image_freq, 2);
+    // Same as calibrate() above: BUSY needs a moment to assert after the
+    // opcode before waitOnBusy()'s poll loop means anything. Without this,
+    // waitOnBusy() can return immediately (BUSY hasn't risen yet) while
+    // CalibrateImage is still running, and the SetRfFrequency that
+    // setFrequency() issues right after lands mid-calibration and gets
+    // dropped — chip stays on the old band's frequency even though
+    // _imageCalBand now (wrongly) claims the new band is cached.
+    delay(5);
     waitOnBusy();
     _imageCalBand = band;
     Serial.printf("[SX1262] Image calibrated for %lu Hz (0x%02X 0x%02X)\n",
