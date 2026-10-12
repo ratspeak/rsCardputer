@@ -1,6 +1,7 @@
+
 <div align="center">
 
-# rsCardputer
+# rsCardputer <br> ⚠️ DEPRECATED - use [ratspeak-handheld](https://github.com/ratspeak/ratspeak-handheld) ⚠️
 
 **Dual-mode Ratspeak firmware for the M5Stack Cardputer Adv.**
 
