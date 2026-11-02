@@ -1,10 +1,12 @@
 # Ratspeak Launcher
 
-This is the local mode chooser for Cardputer Adv. It does not download or
-install firmware. It only selects between the Standalone and RNode app partitions
-already flashed into internal storage.
+This is the legacy rsCardputer mode chooser for Cardputer Adv. For current
+firmware, see [Ratspeak Handheld](https://github.com/ratspeak/ratspeak-handheld).
 
-Current controls:
+The launcher selects between the Standalone and RNode app partitions already
+flashed into internal storage. It does not download or install firmware.
+
+Controls in this repository:
 
 - `Enter`: start selected mode.
 - `;`, `,`, `W`: select Standalone.

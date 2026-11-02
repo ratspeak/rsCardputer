@@ -7,17 +7,22 @@
 
 [![Status](https://img.shields.io/badge/status-beta-yellow.svg)](#install)
 [![Model](https://img.shields.io/badge/model-Cardputer%20Adv-success.svg)](https://docs.m5stack.com/en/core/Cardputer-Adv)
-[![Version](https://img.shields.io/badge/version-2.0.3-success.svg)](https://github.com/ratspeak/rsCardputer/releases)
+[![Legacy version](https://img.shields.io/badge/legacy_version-2.0.3-success.svg)](https://github.com/ratspeak/rsCardputer/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 
 [Ratspeak](https://github.com/ratspeak/Ratspeak) |
-[Docs](https://ratspeak.org/docs.html) |
-[Downloads](https://ratspeak.org/download.html) |
+[Current docs](https://docs.ratspeak.org/docs/hardware/handheld-guide) |
+[Legacy releases](https://github.com/ratspeak/rsCardputer/releases) |
 [rsReticulum](https://github.com/ratspeak/rsReticulum)
 
 </div>
 
 ---
+
+**Legacy repository.** Current firmware and development are in
+[Ratspeak Handheld](https://github.com/ratspeak/ratspeak-handheld). The modes,
+controls, radio defaults and build artifacts below describe this retained
+repository; they are not the current handheld release instructions.
 
 rsCardputer turns the
 [M5Stack Cardputer Adv](https://docs.m5stack.com/en/core/Cardputer-Adv) into a
@@ -36,16 +41,20 @@ The supported target is the **M5Stack Cardputer Adv** with:
 - SX1262 LoRa cap/module.
 
 LoRa requires the Cardputer Adv LoRa cap. Without it, the device can still run
-the app with WiFi/BLE features, but it cannot transmit or receive LoRa.
+Standalone messaging over WiFi, but it cannot transmit or receive LoRa. BLE
+is the host connection for RNode mode; it does not replace the LoRa radio.
 
 ## Install
 
-Use the Ratspeak web flasher:
-[ratspeak.org/download.html](https://ratspeak.org/download.html).
+For current firmware, follow the
+[handheld installation guide](https://docs.ratspeak.org/docs/hardware/flashing-firmware)
+and choose **Cardputer Adv** in the
+[Ratspeak web flasher](https://ratspeak.org/download.html). The current full
+image is `cardputer-full.bin`.
 
-Connect the Cardputer Adv over USB, put it in download mode if needed, then
-flash `rscardputer-full`. The standalone-only and RNode-only images are release
-artifacts for launcher users or focused testing.
+Back up your identity and messages before changing firmware or layouts. Legacy
+packages from this repository use different names and storage layouts; matching
+a device name does not establish that an update will preserve its data.
 
 ## Modes
 
@@ -77,16 +86,16 @@ timezone so GPS-provided time can be displayed locally. Your LXMF address is the
 parameters through normal RNode commands, and Standalone mode exposes radio
 settings on-device.
 
-| Preset | SF | BW | CR | TXP | Bitrate | Link budget |
-|---|---:|---:|---:|---:|---:|---:|
-| Short Turbo | 7 | 500 kHz | 4/5 | 14 dBm | 21.99 kbps | 140 dB |
-| Short Fast | 7 | 250 kHz | 4/5 | 14 dBm | 10.84 kbps | 143 dB |
-| Short Slow | 8 | 250 kHz | 4/5 | 14 dBm | 6.25 kbps | 145.5 dB |
-| Medium Fast | 9 | 250 kHz | 4/5 | 17 dBm | 3.52 kbps | 148 dB |
-| Medium Slow | 10 | 250 kHz | 4/5 | 17 dBm | 1.95 kbps | 150.5 dB |
-| Long Turbo | 11 | 500 kHz | 4/8 | 22 dBm | 1.34 kbps | 150 dB |
-| **Long Fast** *(default)* | **11** | **250 kHz** | **4/5** | **22 dBm** | **1.07 kbps** | **153 dB** |
-| Long Moderate | 11 | 125 kHz | 4/8 | 22 dBm | 0.34 kbps | 156 dB |
+| Preset | SF | BW | CR | TXP |
+|---|---:|---:|---:|---:|
+| Short Turbo | 7 | 500 kHz | 4/5 | 14 dBm |
+| Short Fast | 7 | 250 kHz | 4/5 | 14 dBm |
+| Short Slow | 8 | 250 kHz | 4/5 | 14 dBm |
+| Medium Fast | 9 | 250 kHz | 4/5 | 17 dBm |
+| Medium Slow | 10 | 250 kHz | 4/5 | 17 dBm |
+| Long Turbo | 11 | 500 kHz | 4/8 | 22 dBm |
+| **Long Fast** *(default)* | **11** | **250 kHz** | **4/5** | **22 dBm** |
+| Long Moderate | 11 | 125 kHz | 4/8 | 22 dBm |
 
 The supported SX1262 cap is an 850-950 MHz radio target. 868 MHz and 915 MHz
 are valid software profiles for that hardware range. 433 MHz requires 433 MHz
@@ -95,14 +104,25 @@ regulations.
 
 ## Build From Source
 
+These commands build the retained legacy source. Install Git, Make, Python 3
+with virtual-environment support, and Arduino CLI first. Use a fresh checkout:
+packaging replaces files under `dist/`.
+
 ```bash
 git clone https://github.com/ratspeak/rsCardputer
 cd rsCardputer
+git checkout 98fec8f5e2f00330d95d0c27479a13f4b358f1f9
+python3 -m venv .venv
+. .venv/bin/activate
 python3 -m pip install platformio esptool
 make prep-cardputer_adv
 make package
-make flash port=/dev/cu.usbmodem3101
 ```
+
+After backing up the device, `make flash PORT=/dev/cu.usbmodemXXXX` builds and
+writes the full legacy image at offset `0x0`. Replace the port with your device
+and close any app using it. A factory write can replace settings; do not assume
+that data from another firmware layout will survive.
 
 Useful build targets:
 
@@ -116,7 +136,7 @@ make rnode-only-image    # standalone RNode merged image
 make package             # release zips and launcher bins
 ```
 
-Release artifacts are written to `dist/`:
+Legacy artifacts are written to `dist/`:
 
 ```text
 dist/rscardputer-full.zip
@@ -126,9 +146,10 @@ dist/rscardputer-standalone-m5launcher.bin
 dist/rscardputer-rnode-m5launcher.bin
 ```
 
-Use the `.zip` files with the Ratspeak web flasher. The `*-m5launcher.bin`
-files are app images for M5Launcher/M5Burner-style launchers that boot
-Standalone or RNode directly from SD.
+Each `.zip` contains a merged factory image and its legacy flasher manifest.
+The `*-m5launcher.bin` files are bare applications for a compatible external
+launcher or a correctly sized OTA slot. Do not write a bare application at
+offset `0x0`.
 
 ## License
 
